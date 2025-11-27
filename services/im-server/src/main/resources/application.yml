@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: lumi-chat-im-server
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+
+server:
+  port: 8081
+
+im:
+  websocket:
+    port: 7901
+    path: /ws
+  tcp:
+    port: 8901
+  udp:
+    port: 7903
+
+  # Session settings
+  session:
+    timeout: 300000  # 5 minutes heartbeat timeout
+    heartbeat-interval: 30000  # 30 seconds
+
+  # Message settings
+  message:
+    max-size: 65536  # 64KB max message size
+
+logging:
+  level:
+    root: INFO
+    com.lumichat.im: DEBUG
+    io.netty: INFO
