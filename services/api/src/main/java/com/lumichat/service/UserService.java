@@ -4,6 +4,8 @@ import com.lumichat.dto.request.ChangePasswordRequest;
 import com.lumichat.dto.request.UpdateProfileRequest;
 import com.lumichat.dto.response.UserResponse;
 import com.lumichat.entity.User;
+import com.lumichat.exception.BadRequestException;
+import com.lumichat.exception.NotFoundException;
 import com.lumichat.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +28,7 @@ public class UserService {
      */
     public User getUserById(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new NotFoundException("User not found"));
     }
 
     /**
@@ -34,7 +36,7 @@ public class UserService {
      */
     public User getUserByUid(String uid) {
         return userRepository.findByUid(uid)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new NotFoundException("User not found"));
     }
 
     /**
@@ -68,10 +70,6 @@ public class UserService {
             user.setSignature(request.getSignature());
         }
 
-        if (request.getDescription() != null) {
-            user.setDescription(request.getDescription());
-        }
-
         if (request.getPhone() != null) {
             user.setPhone(request.getPhone());
         }
@@ -103,7 +101,7 @@ public class UserService {
 
         // Verify current password
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
-            throw new RuntimeException("Current password is incorrect");
+            throw new BadRequestException("Current password is incorrect");
         }
 
         // Update password
@@ -117,7 +115,7 @@ public class UserService {
      */
     public List<UserResponse> searchUsers(String query, Long currentUserId) {
         if (query == null || query.length() < 2) {
-            throw new RuntimeException("Search query must be at least 2 characters");
+            throw new BadRequestException("Search query must be at least 2 characters");
         }
 
         // Search by email or UID containing the query
@@ -138,7 +136,7 @@ public class UserService {
     public UserResponse getUserResponseByUid(String uid) {
         User user = getUserByUid(uid);
         if (user.getStatus() != User.UserStatus.active) {
-            throw new RuntimeException("User not found");
+            throw new NotFoundException("User not found");
         }
         return UserResponse.from(user);
     }

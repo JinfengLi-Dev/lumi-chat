@@ -6,6 +6,8 @@ import com.lumichat.dto.response.LoginResponse;
 import com.lumichat.dto.response.UserResponse;
 import com.lumichat.entity.User;
 import com.lumichat.entity.UserDevice;
+import com.lumichat.exception.BadRequestException;
+import com.lumichat.exception.UnauthorizedException;
 import com.lumichat.repository.UserDeviceRepository;
 import com.lumichat.repository.UserRepository;
 import com.lumichat.security.JwtTokenProvider;
@@ -30,21 +32,20 @@ public class AuthService {
     public LoginResponse login(LoginRequest request, String ipAddress) {
         // Find user by email or UID
         User user = userRepository.findByEmailOrUid(request.getEmail(), request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Invalid email/UID or password"));
+                .orElseThrow(() -> new UnauthorizedException("Invalid email/UID or password"));
 
         // Verify password
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            throw new RuntimeException("Invalid email/UID or password");
+            throw new UnauthorizedException("Invalid email/UID or password");
         }
 
         // Check if user is active
         if (user.getStatus() != User.UserStatus.active) {
-            throw new RuntimeException("Account is " + user.getStatus().name());
+            throw new UnauthorizedException("Account is " + user.getStatus().name());
         }
 
         // Update last login
         user.setLastLoginAt(LocalDateTime.now());
-        user.setLastLoginIp(ipAddress);
         userRepository.save(user);
 
         // Register or update device
@@ -66,7 +67,7 @@ public class AuthService {
     public UserResponse register(RegisterRequest request) {
         // Check if email already exists
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already registered");
+            throw new BadRequestException("Email already exists");
         }
 
         // Generate unique UID
@@ -90,24 +91,23 @@ public class AuthService {
     @Transactional
     public LoginResponse refreshToken(String refreshToken, String ipAddress) {
         if (!jwtTokenProvider.validateToken(refreshToken)) {
-            throw new RuntimeException("Invalid refresh token");
+            throw new UnauthorizedException("Invalid refresh token");
         }
 
         Long userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
         String deviceId = jwtTokenProvider.getDeviceIdFromToken(refreshToken);
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UnauthorizedException("User not found"));
 
         if (user.getStatus() != User.UserStatus.active) {
-            throw new RuntimeException("Account is " + user.getStatus().name());
+            throw new UnauthorizedException("Account is " + user.getStatus().name());
         }
 
         // Update device last active
         userDeviceRepository.findByUserIdAndDeviceId(userId, deviceId)
                 .ifPresent(device -> {
                     device.setLastActiveAt(LocalDateTime.now());
-                    device.setLastIp(ipAddress);
                     userDeviceRepository.save(device);
                 });
 
@@ -151,7 +151,6 @@ public class AuthService {
         device.setDeviceName(request.getDeviceName());
         device.setIsOnline(true);
         device.setLastActiveAt(LocalDateTime.now());
-        device.setLastIp(ipAddress);
 
         userDeviceRepository.save(device);
     }
