@@ -43,7 +43,7 @@ public class MessageService {
         if (beforeId != null) {
             messages = messageRepository.findBeforeId(conversationId, beforeId, PageRequest.of(0, limit));
         } else {
-            messages = messageRepository.findByConversationIdAndIsDeletedFalseOrderByServerCreatedAtDesc(
+            messages = messageRepository.findByConversationIdOrderByServerCreatedAtDesc(
                     conversationId, PageRequest.of(0, limit));
         }
 
@@ -104,7 +104,7 @@ public class MessageService {
 
         // Update conversation last message
         conversation.setLastMsgTime(message.getServerCreatedAt());
-        conversation.setLastMsgContent(truncateContent(request.getContent(), msgType));
+        conversation.setLastMsgId(message.getId());
         conversationRepository.save(conversation);
 
         // Increment unread count for other participants
@@ -176,7 +176,7 @@ public class MessageService {
 
         // Update conversation last message
         targetConversation.setLastMsgTime(message.getServerCreatedAt());
-        targetConversation.setLastMsgContent(truncateContent(message.getContent(), message.getMsgType()));
+        targetConversation.setLastMsgId(message.getId());
         conversationRepository.save(targetConversation);
 
         // Increment unread count for other participants
@@ -200,10 +200,12 @@ public class MessageService {
         userConversationRepository.findByUserIdAndConversationId(userId, message.getConversation().getId())
                 .orElseThrow(() -> new RuntimeException("Conversation not found"));
 
-        // Soft delete
-        message.setIsDeleted(true);
-        messageRepository.save(message);
+        // Only sender can delete their own messages
+        if (!message.getSender().getId().equals(userId)) {
+            throw new RuntimeException("You can only delete your own messages");
+        }
 
+        messageRepository.delete(message);
         log.info("User {} deleted message {}", userId, msgId);
     }
 

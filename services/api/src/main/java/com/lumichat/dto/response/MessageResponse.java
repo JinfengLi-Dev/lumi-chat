@@ -21,7 +21,7 @@ public class MessageResponse {
     private String metadata;
     private String quoteMsgId;
     private MessageResponse quoteMessage;
-    private String atUserIds;
+    private Long[] atUserIds;
     private LocalDateTime clientCreatedAt;
     private LocalDateTime serverCreatedAt;
     private LocalDateTime recalledAt;

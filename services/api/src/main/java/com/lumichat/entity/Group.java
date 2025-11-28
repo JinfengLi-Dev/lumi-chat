@@ -23,34 +23,32 @@ public class Group {
     @Column(unique = true, nullable = false, length = 20)
     private String gid;
 
-    @Column(nullable = false, length = 100)
+    @Column(nullable = false, length = 30)
     private String name;
 
     @Column(length = 500)
     private String avatar;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "owner_id", nullable = false)
+    @JoinColumn(name = "owner_id")
     private User owner;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "creator_id", nullable = false)
+    @JoinColumn(name = "creator_id")
     private User creator;
 
-    @Column(length = 500)
+    @Column(columnDefinition = "text")
     private String announcement;
 
+    @Column(name = "max_members")
     @Builder.Default
-    private Integer maxMembers = 200;
-
-    @Builder.Default
-    private Integer memberCount = 1;
+    private Integer maxMembers = 500;
 
     @CreationTimestamp
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @UpdateTimestamp
-    @Column(nullable = false)
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 }

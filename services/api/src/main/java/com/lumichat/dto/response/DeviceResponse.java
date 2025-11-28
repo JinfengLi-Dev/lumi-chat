@@ -16,7 +16,6 @@ public class DeviceResponse {
     private String deviceName;
     private Boolean isOnline;
     private LocalDateTime lastActiveAt;
-    private String lastIp;
     private LocalDateTime createdAt;
 
     public static DeviceResponse from(UserDevice device) {
@@ -27,7 +26,6 @@ public class DeviceResponse {
                 .deviceName(device.getDeviceName())
                 .isOnline(device.getIsOnline())
                 .lastActiveAt(device.getLastActiveAt())
-                .lastIp(device.getLastIp())
                 .createdAt(device.getCreatedAt())
                 .build();
     }

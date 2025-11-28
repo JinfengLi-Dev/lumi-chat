@@ -20,17 +20,17 @@ public class GroupDetailResponse {
     private Integer memberCount;
     private LocalDateTime createdAt;
 
-    public static GroupDetailResponse from(Group group) {
+    public static GroupDetailResponse from(Group group, int memberCount) {
         return GroupDetailResponse.builder()
                 .id(group.getId())
                 .gid(group.getGid())
                 .name(group.getName())
                 .avatar(group.getAvatar())
-                .ownerId(group.getOwner().getId())
-                .ownerNickname(group.getOwner().getNickname())
+                .ownerId(group.getOwner() != null ? group.getOwner().getId() : null)
+                .ownerNickname(group.getOwner() != null ? group.getOwner().getNickname() : null)
                 .announcement(group.getAnnouncement())
                 .maxMembers(group.getMaxMembers())
-                .memberCount(group.getMemberCount())
+                .memberCount(memberCount)
                 .createdAt(group.getCreatedAt())
                 .build();
     }

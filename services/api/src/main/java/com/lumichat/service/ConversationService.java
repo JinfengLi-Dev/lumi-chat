@@ -1,7 +1,5 @@
 package com.lumichat.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lumichat.dto.response.ConversationResponse;
 import com.lumichat.dto.response.MessageResponse;
@@ -60,7 +58,7 @@ public class ConversationService {
         UserConversation uc = userConversationRepository.findByUserIdAndConversationId(userId, conversationId)
                 .orElseThrow(() -> new RuntimeException("Conversation not found"));
 
-        if (uc.getIsDeleted()) {
+        if (uc.getIsHidden()) {
             throw new RuntimeException("Conversation not found");
         }
 
@@ -82,7 +80,7 @@ public class ConversationService {
     @Transactional
     public void markAsRead(Long userId, Long conversationId) {
         // Get the latest message ID
-        var messages = messageRepository.findByConversationIdAndIsDeletedFalseOrderByServerCreatedAtDesc(
+        var messages = messageRepository.findByConversationIdOrderByServerCreatedAtDesc(
                 conversationId, PageRequest.of(0, 1));
 
         Long lastMsgId = messages.hasContent() ? messages.getContent().get(0).getId() : null;
@@ -127,11 +125,11 @@ public class ConversationService {
 
         for (UserConversation uc : existingUc) {
             if (uc.getConversation().getType() == Conversation.ConversationType.private_chat) {
-                List<Long> participantIds = parseParticipantIds(uc.getConversation().getParticipantIds());
+                List<Long> participantIds = arrayToList(uc.getConversation().getParticipantIds());
                 if (participantIds.contains(targetUserId) && participantIds.contains(userId)) {
                     // Found existing conversation
-                    if (uc.getIsDeleted()) {
-                        uc.setIsDeleted(false);
+                    if (uc.getIsHidden()) {
+                        uc.setIsHidden(false);
                         userConversationRepository.save(uc);
                     }
                     return buildConversationResponse(uc, userId);
@@ -143,16 +141,11 @@ public class ConversationService {
         User targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new RuntimeException("Target user not found"));
 
-        String participantIdsJson;
-        try {
-            participantIdsJson = objectMapper.writeValueAsString(List.of(userId, targetUserId));
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Error serializing participant IDs", e);
-        }
+        Long[] participantIdsArray = new Long[]{userId, targetUserId};
 
         Conversation conversation = Conversation.builder()
                 .type(Conversation.ConversationType.private_chat)
-                .participantIds(participantIdsJson)
+                .participantIds(participantIdsArray)
                 .build();
         conversation = conversationRepository.save(conversation);
 
@@ -189,7 +182,7 @@ public class ConversationService {
         // Get target user for private chats
         if (c.getType() == Conversation.ConversationType.private_chat ||
             c.getType() == Conversation.ConversationType.stranger) {
-            List<Long> participantIds = parseParticipantIds(c.getParticipantIds());
+            List<Long> participantIds = arrayToList(c.getParticipantIds());
             Long targetUserId = participantIds.stream()
                     .filter(id -> !id.equals(currentUserId))
                     .findFirst()
@@ -205,7 +198,7 @@ public class ConversationService {
         }
 
         // Get last message
-        var messages = messageRepository.findByConversationIdAndIsDeletedFalseOrderByServerCreatedAtDesc(
+        var messages = messageRepository.findByConversationIdOrderByServerCreatedAtDesc(
                 c.getId(), PageRequest.of(0, 1));
         if (messages.hasContent()) {
             lastMessage = MessageResponse.fromWithSender(messages.getContent().get(0));
@@ -214,15 +207,10 @@ public class ConversationService {
         return ConversationResponse.from(uc, targetUser, lastMessage);
     }
 
-    private List<Long> parseParticipantIds(String json) {
-        if (json == null || json.isBlank()) {
+    private List<Long> arrayToList(Long[] array) {
+        if (array == null) {
             return List.of();
         }
-        try {
-            return objectMapper.readValue(json, new TypeReference<List<Long>>() {});
-        } catch (JsonProcessingException e) {
-            log.error("Error parsing participant IDs: {}", e.getMessage());
-            return List.of();
-        }
+        return java.util.Arrays.asList(array);
     }
 }

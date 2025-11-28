@@ -19,7 +19,7 @@ public class SendMessageRequest {
 
     private String quoteMsgId;
 
-    private String atUserIds;
+    private Long[] atUserIds;
 
     private String clientCreatedAt;
 }

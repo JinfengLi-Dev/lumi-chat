@@ -17,7 +17,6 @@ public class UserResponse {
     private String avatar;
     private String gender;
     private String signature;
-    private String description;
     private String phone;
     private String status;
     private LocalDateTime createdAt;
@@ -32,7 +31,6 @@ public class UserResponse {
                 .avatar(user.getAvatar())
                 .gender(user.getGender().name())
                 .signature(user.getSignature())
-                .description(user.getDescription())
                 .phone(user.getPhone())
                 .status(user.getStatus().name())
                 .createdAt(user.getCreatedAt())

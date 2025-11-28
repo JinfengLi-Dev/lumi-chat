@@ -23,7 +23,7 @@ public class GroupResponse {
     private Integer memberCount;
     private LocalDateTime createdAt;
 
-    public static GroupResponse from(Group group) {
+    public static GroupResponse from(Group group, int memberCount) {
         return GroupResponse.builder()
                 .id(group.getId())
                 .gid(group.getGid())
@@ -33,13 +33,13 @@ public class GroupResponse {
                 .creatorId(group.getCreator() != null ? group.getCreator().getId() : null)
                 .announcement(group.getAnnouncement())
                 .maxMembers(group.getMaxMembers())
-                .memberCount(group.getMemberCount())
+                .memberCount(memberCount)
                 .createdAt(group.getCreatedAt())
                 .build();
     }
 
-    public static GroupResponse fromWithOwner(Group group) {
-        GroupResponse response = from(group);
+    public static GroupResponse fromWithOwner(Group group, int memberCount) {
+        GroupResponse response = from(group, memberCount);
         if (group.getOwner() != null) {
             response.setOwner(UserResponse.from(group.getOwner()));
         }

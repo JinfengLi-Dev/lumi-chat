@@ -33,7 +33,7 @@ public class FriendService {
      * Get all friends for a user
      */
     public List<FriendResponse> getFriends(Long userId) {
-        List<Friendship> friendships = friendshipRepository.findByUserIdAndNotBlocked(userId);
+        List<Friendship> friendships = friendshipRepository.findByUserIdAndActive(userId);
         return friendships.stream()
                 .map(FriendResponse::from)
                 .collect(Collectors.toList());
@@ -215,7 +215,7 @@ public class FriendService {
      */
     @Transactional
     public void blockFriend(Long userId, Long friendId) {
-        int updated = friendshipRepository.updateBlockStatus(userId, friendId, true);
+        int updated = friendshipRepository.updateStatus(userId, friendId, "blocked");
         if (updated == 0) {
             throw new NotFoundException("Friendship not found");
         }
@@ -227,7 +227,7 @@ public class FriendService {
      */
     @Transactional
     public void unblockFriend(Long userId, Long friendId) {
-        int updated = friendshipRepository.updateBlockStatus(userId, friendId, false);
+        int updated = friendshipRepository.updateStatus(userId, friendId, "active");
         if (updated == 0) {
             throw new NotFoundException("Friendship not found");
         }

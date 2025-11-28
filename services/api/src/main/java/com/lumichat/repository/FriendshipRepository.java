@@ -13,8 +13,8 @@ import java.util.Optional;
 @Repository
 public interface FriendshipRepository extends JpaRepository<Friendship, Long> {
 
-    @Query("SELECT f FROM Friendship f WHERE f.user.id = :userId AND f.isBlocked = false")
-    List<Friendship> findByUserIdAndNotBlocked(@Param("userId") Long userId);
+    @Query("SELECT f FROM Friendship f WHERE f.user.id = :userId AND f.status = 'active'")
+    List<Friendship> findByUserIdAndActive(@Param("userId") Long userId);
 
     @Query("SELECT f FROM Friendship f WHERE f.user.id = :userId")
     List<Friendship> findByUserId(@Param("userId") Long userId);
@@ -31,8 +31,8 @@ public interface FriendshipRepository extends JpaRepository<Friendship, Long> {
     int updateRemark(@Param("userId") Long userId, @Param("friendId") Long friendId, @Param("remark") String remark);
 
     @Modifying
-    @Query("UPDATE Friendship f SET f.isBlocked = :isBlocked WHERE f.user.id = :userId AND f.friend.id = :friendId")
-    int updateBlockStatus(@Param("userId") Long userId, @Param("friendId") Long friendId, @Param("isBlocked") Boolean isBlocked);
+    @Query("UPDATE Friendship f SET f.status = :status WHERE f.user.id = :userId AND f.friend.id = :friendId")
+    int updateStatus(@Param("userId") Long userId, @Param("friendId") Long friendId, @Param("status") String status);
 
     @Modifying
     @Query("DELETE FROM Friendship f WHERE f.user.id = :userId AND f.friend.id = :friendId")

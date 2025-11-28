@@ -16,7 +16,7 @@ public class FriendResponse {
     private String remark;
     private String signature;
     private String gender;
-    private Boolean isBlocked;
+    private String status;
     private LocalDateTime createdAt;
 
     public static FriendResponse from(Friendship friendship) {
@@ -29,7 +29,7 @@ public class FriendResponse {
                 .remark(friendship.getRemark())
                 .signature(friend.getSignature())
                 .gender(friend.getGender() != null ? friend.getGender().name() : null)
-                .isBlocked(friendship.getIsBlocked())
+                .status(friendship.getStatus())
                 .createdAt(friendship.getCreatedAt())
                 .build();
     }

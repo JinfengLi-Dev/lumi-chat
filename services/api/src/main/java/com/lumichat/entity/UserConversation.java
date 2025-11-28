@@ -3,7 +3,9 @@ package com.lumichat.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -39,14 +41,14 @@ public class UserConversation {
     private Boolean isPinned = false;
 
     @Builder.Default
-    private Boolean isDeleted = false;
+    private Boolean isHidden = false;
 
     @Column(columnDefinition = "text")
     private String draft;
 
-    @Column(columnDefinition = "jsonb")
-    @Builder.Default
-    private String atMsgIds = "[]";
+    @Column(name = "at_msg_ids", columnDefinition = "bigint[]")
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    private Long[] atMsgIds;
 
     private Long lastReadMsgId;
 

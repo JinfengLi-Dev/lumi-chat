@@ -19,29 +19,32 @@ public class FileEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true, nullable = false, length = 64)
+    @Column(name = "file_id", unique = true, nullable = false, length = 36)
     private String fileId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "uploader_id", nullable = false)
+    @JoinColumn(name = "uploader_id")
     private User uploader;
 
-    @Column(nullable = false, length = 255)
-    private String fileName;
+    @Column(name = "original_name", length = 255)
+    private String originalName;
 
-    @Column(nullable = false)
-    private Long fileSize;
+    @Column(name = "stored_name", length = 255)
+    private String storedName;
 
-    @Column(length = 50)
-    private String fileType;
-
-    @Column(length = 100)
+    @Column(name = "mime_type", length = 100)
     private String mimeType;
 
-    @Column(nullable = false, length = 500)
-    private String storagePath;
+    @Column(name = "size_bytes")
+    private Long sizeBytes;
+
+    @Column(length = 50)
+    private String bucket;
 
     @Column(length = 500)
+    private String path;
+
+    @Column(name = "thumbnail_path", length = 500)
     private String thumbnailPath;
 
     private Integer width;
@@ -51,6 +54,6 @@ public class FileEntity {
     private Integer duration;
 
     @CreationTimestamp
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 }

@@ -19,6 +19,6 @@ public interface FileRepository extends JpaRepository<FileEntity, Long> {
     @Query("SELECT f FROM FileEntity f WHERE f.uploader.id = :userId ORDER BY f.createdAt DESC")
     List<FileEntity> findByUploaderId(@Param("userId") Long userId);
 
-    @Query("SELECT f FROM FileEntity f WHERE f.uploader.id = :userId AND f.fileType = :fileType ORDER BY f.createdAt DESC")
-    List<FileEntity> findByUploaderIdAndFileType(@Param("userId") Long userId, @Param("fileType") String fileType);
+    @Query("SELECT f FROM FileEntity f WHERE f.uploader.id = :userId AND f.bucket = :bucket ORDER BY f.createdAt DESC")
+    List<FileEntity> findByUploaderIdAndBucket(@Param("userId") Long userId, @Param("bucket") String bucket);
 }

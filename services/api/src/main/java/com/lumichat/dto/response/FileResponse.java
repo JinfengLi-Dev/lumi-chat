@@ -12,7 +12,7 @@ public class FileResponse {
     private String fileId;
     private String fileName;
     private Long fileSize;
-    private String fileType;
+    private String bucket;
     private String mimeType;
     private String url;
     private String thumbnailUrl;
@@ -24,9 +24,9 @@ public class FileResponse {
     public static FileResponse from(FileEntity file, String baseUrl) {
         return FileResponse.builder()
                 .fileId(file.getFileId())
-                .fileName(file.getFileName())
-                .fileSize(file.getFileSize())
-                .fileType(file.getFileType())
+                .fileName(file.getOriginalName())
+                .fileSize(file.getSizeBytes())
+                .bucket(file.getBucket())
                 .mimeType(file.getMimeType())
                 .url(baseUrl + "/files/" + file.getFileId())
                 .thumbnailUrl(file.getThumbnailPath() != null

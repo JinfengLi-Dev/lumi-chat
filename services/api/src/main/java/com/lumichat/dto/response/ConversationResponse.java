@@ -22,7 +22,7 @@ public class ConversationResponse {
     private Boolean isMuted;
     private Boolean isPinned;
     private String draft;
-    private String atMsgIds;
+    private Long[] atMsgIds;
 
     public static ConversationResponse from(UserConversation uc, UserResponse targetUser, MessageResponse lastMessage) {
         Conversation c = uc.getConversation();

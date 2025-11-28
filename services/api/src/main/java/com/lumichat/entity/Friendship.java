@@ -3,7 +3,6 @@ package com.lumichat.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -33,15 +32,11 @@ public class Friendship {
     @Column(length = 50)
     private String remark;
 
-    @Column(nullable = false)
+    @Column(length = 20)
     @Builder.Default
-    private Boolean isBlocked = false;
+    private String status = "active";
 
     @CreationTimestamp
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(nullable = false)
-    private LocalDateTime updatedAt;
 }

@@ -39,7 +39,10 @@ public class GroupService {
     public List<GroupDetailResponse> getUserGroups(Long userId) {
         List<GroupMember> memberships = groupMemberRepository.findByUserId(userId);
         return memberships.stream()
-                .map(gm -> GroupDetailResponse.from(gm.getGroup()))
+                .map(gm -> {
+                    int memberCount = groupMemberRepository.countByGroupId(gm.getGroup().getId());
+                    return GroupDetailResponse.from(gm.getGroup(), memberCount);
+                })
                 .collect(Collectors.toList());
     }
 
@@ -55,7 +58,8 @@ public class GroupService {
             throw new ForbiddenException("You are not a member of this group");
         }
 
-        return GroupDetailResponse.from(group);
+        int memberCount = groupMemberRepository.countByGroupId(groupId);
+        return GroupDetailResponse.from(group, memberCount);
     }
 
     /**
@@ -76,7 +80,6 @@ public class GroupService {
                 .announcement(request.getAnnouncement())
                 .owner(creator)
                 .creator(creator)
-                .memberCount(1)
                 .build();
 
         group = groupRepository.save(group);
@@ -101,7 +104,8 @@ public class GroupService {
         }
 
         log.info("Group {} created by user {}", group.getId(), userId);
-        return GroupDetailResponse.from(group);
+        int memberCount = groupMemberRepository.countByGroupId(group.getId());
+        return GroupDetailResponse.from(group, memberCount);
     }
 
     /**
@@ -132,7 +136,8 @@ public class GroupService {
 
         group = groupRepository.save(group);
         log.info("Group {} updated by user {}", groupId, userId);
-        return GroupDetailResponse.from(group);
+        int memberCount = groupMemberRepository.countByGroupId(groupId);
+        return GroupDetailResponse.from(group, memberCount);
     }
 
     /**
@@ -224,11 +229,6 @@ public class GroupService {
         }
 
         groupMemberRepository.delete(target);
-
-        // Update member count
-        group.setMemberCount(group.getMemberCount() - 1);
-        groupRepository.save(group);
-
         log.info("User {} removed user {} from group {}", userId, targetUserId, groupId);
     }
 
@@ -260,7 +260,8 @@ public class GroupService {
         group = groupRepository.save(group);
 
         log.info("Group {} ownership transferred from {} to {}", groupId, userId, newOwnerId);
-        return GroupDetailResponse.from(group);
+        int memberCount = groupMemberRepository.countByGroupId(groupId);
+        return GroupDetailResponse.from(group, memberCount);
     }
 
     /**
@@ -279,11 +280,6 @@ public class GroupService {
         }
 
         groupMemberRepository.delete(member);
-
-        // Update member count
-        group.setMemberCount(group.getMemberCount() - 1);
-        groupRepository.save(group);
-
         log.info("User {} left group {}", userId, groupId);
     }
 
@@ -299,6 +295,7 @@ public class GroupService {
 
     private List<GroupMember> addMembersInternal(Group group, User inviter, List<Long> memberIds) {
         List<GroupMember> addedMembers = new ArrayList<>();
+        int currentMemberCount = groupMemberRepository.countByGroupId(group.getId());
 
         for (Long memberId : memberIds) {
             // Skip if already a member
@@ -307,7 +304,7 @@ public class GroupService {
             }
 
             // Check group capacity
-            if (group.getMemberCount() >= group.getMaxMembers()) {
+            if (currentMemberCount + addedMembers.size() >= group.getMaxMembers()) {
                 log.warn("Group {} is full, cannot add more members", group.getId());
                 break;
             }
@@ -325,13 +322,6 @@ public class GroupService {
                     .build();
             groupMember = groupMemberRepository.save(groupMember);
             addedMembers.add(groupMember);
-
-            // Update member count
-            group.setMemberCount(group.getMemberCount() + 1);
-        }
-
-        if (!addedMembers.isEmpty()) {
-            groupRepository.save(group);
         }
 
         return addedMembers;

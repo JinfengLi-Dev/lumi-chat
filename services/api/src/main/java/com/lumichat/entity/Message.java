@@ -3,6 +3,8 @@ package com.lumichat.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -46,8 +48,9 @@ public class Message {
     @Column(length = 64)
     private String quoteMsgId;
 
-    @Column(columnDefinition = "jsonb")
-    private String atUserIds;
+    @Column(name = "at_user_ids", columnDefinition = "bigint[]")
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    private Long[] atUserIds;
 
     private LocalDateTime clientCreatedAt;
 
@@ -56,9 +59,6 @@ public class Message {
     private LocalDateTime serverCreatedAt;
 
     private LocalDateTime recalledAt;
-
-    @Builder.Default
-    private Boolean isDeleted = false;
 
     public enum MessageType {
         text, image, file, voice, video, location, user_card, group_card, system, recall

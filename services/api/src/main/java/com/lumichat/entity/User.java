@@ -3,7 +3,6 @@ package com.lumichat.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -26,10 +25,10 @@ public class User {
     @Column(unique = true, nullable = false, length = 100)
     private String email;
 
-    @Column(nullable = false)
+    @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = 30)
     private String nickname;
 
     @Column(length = 500)
@@ -43,9 +42,6 @@ public class User {
     @Column(length = 200)
     private String signature;
 
-    @Column(length = 500)
-    private String description;
-
     @Column(length = 20)
     private String phone;
 
@@ -55,17 +51,11 @@ public class User {
     private UserStatus status = UserStatus.active;
 
     @CreationTimestamp
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @UpdateTimestamp
-    @Column(nullable = false)
-    private LocalDateTime updatedAt;
-
+    @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
-
-    @Column(length = 45)
-    private String lastLoginIp;
 
     public enum Gender {
         male, female, unknown

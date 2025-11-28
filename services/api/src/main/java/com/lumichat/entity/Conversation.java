@@ -3,7 +3,8 @@ package com.lumichat.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -28,21 +29,18 @@ public class Conversation {
     @JoinColumn(name = "group_id")
     private Group group;
 
-    @Column(columnDefinition = "jsonb")
-    private String participantIds;
+    @Column(name = "participant_ids", columnDefinition = "bigint[]")
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    private Long[] participantIds;
+
+    @Column(name = "last_msg_id")
+    private Long lastMsgId;
 
     private LocalDateTime lastMsgTime;
-
-    @Column(length = 500)
-    private String lastMsgContent;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(nullable = false)
-    private LocalDateTime updatedAt;
 
     public enum ConversationType {
         private_chat, group, system, stranger

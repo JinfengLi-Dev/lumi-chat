@@ -3,7 +3,6 @@ package com.lumichat.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -24,34 +23,29 @@ public class UserDevice {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(nullable = false, length = 100)
+    @Column(name = "device_id", nullable = false, length = 100)
     private String deviceId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(name = "device_type", nullable = false, length = 20)
     private DeviceType deviceType;
 
-    @Column(length = 100)
+    @Column(name = "device_name", length = 100)
     private String deviceName;
 
-    @Column(length = 500)
+    @Column(name = "push_token", length = 500)
     private String pushToken;
 
+    @Column(name = "is_online")
     @Builder.Default
     private Boolean isOnline = false;
 
+    @Column(name = "last_active_at")
     private LocalDateTime lastActiveAt;
 
-    @Column(length = 45)
-    private String lastIp;
-
     @CreationTimestamp
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(nullable = false)
-    private LocalDateTime updatedAt;
 
     public enum DeviceType {
         web, ios, android, pc, tablet

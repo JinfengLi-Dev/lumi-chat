@@ -73,11 +73,12 @@ public class FileStorageService {
             FileEntity fileEntity = FileEntity.builder()
                     .fileId(fileId)
                     .uploader(uploader)
-                    .fileName(originalFilename)
-                    .fileSize(file.getSize())
-                    .fileType(fileType)
+                    .originalName(originalFilename)
+                    .storedName(storagePath)
+                    .sizeBytes(file.getSize())
+                    .bucket(bucket)
+                    .path(storagePath)
                     .mimeType(file.getContentType())
-                    .storagePath(bucket + "/" + storagePath)
                     .build();
 
             fileEntity = fileRepository.save(fileEntity);
@@ -114,19 +115,11 @@ public class FileStorageService {
         FileEntity fileEntity = fileRepository.findByFileId(fileId)
                 .orElseThrow(() -> new NotFoundException("File not found"));
 
-        String[] pathParts = fileEntity.getStoragePath().split("/", 2);
-        if (pathParts.length != 2) {
-            throw new BadRequestException("Invalid storage path");
-        }
-
-        String bucket = pathParts[0];
-        String objectName = pathParts[1];
-
         try {
             return minioClient.getObject(
                     GetObjectArgs.builder()
-                            .bucket(bucket)
-                            .object(objectName)
+                            .bucket(fileEntity.getBucket())
+                            .object(fileEntity.getPath())
                             .build()
             );
         } catch (Exception e) {
@@ -147,9 +140,13 @@ public class FileStorageService {
      * Get user files
      */
     public List<FileResponse> getUserFiles(Long userId, String fileType) {
-        List<FileEntity> files = fileType != null
-                ? fileRepository.findByUploaderIdAndFileType(userId, fileType)
-                : fileRepository.findByUploaderId(userId);
+        List<FileEntity> files;
+        if (fileType != null) {
+            String bucket = getBucketForFileType(fileType);
+            files = fileRepository.findByUploaderIdAndBucket(userId, bucket);
+        } else {
+            files = fileRepository.findByUploaderId(userId);
+        }
         String baseUrl = getBaseUrl();
         return files.stream()
                 .map(f -> FileResponse.from(f, baseUrl))
@@ -168,18 +165,15 @@ public class FileStorageService {
             throw new BadRequestException("You can only delete your own files");
         }
 
-        String[] pathParts = fileEntity.getStoragePath().split("/", 2);
-        if (pathParts.length == 2) {
-            try {
-                minioClient.removeObject(
-                        RemoveObjectArgs.builder()
-                                .bucket(pathParts[0])
-                                .object(pathParts[1])
-                                .build()
-                );
-            } catch (Exception e) {
-                log.warn("Failed to delete file from MinIO: {}", e.getMessage());
-            }
+        try {
+            minioClient.removeObject(
+                    RemoveObjectArgs.builder()
+                            .bucket(fileEntity.getBucket())
+                            .object(fileEntity.getPath())
+                            .build()
+            );
+        } catch (Exception e) {
+            log.warn("Failed to delete file from MinIO: {}", e.getMessage());
         }
 
         fileRepository.delete(fileEntity);

@@ -67,7 +67,7 @@ public class FileController {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(contentType))
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "inline; filename=\"" + fileEntity.getFileName() + "\"")
+                        "inline; filename=\"" + fileEntity.getOriginalName() + "\"")
                 .body(new InputStreamResource(inputStream));
     }
 
@@ -83,7 +83,7 @@ public class FileController {
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"" + fileEntity.getFileName() + "\"")
+                        "attachment; filename=\"" + fileEntity.getOriginalName() + "\"")
                 .body(new InputStreamResource(inputStream));
     }
 
