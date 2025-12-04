@@ -56,3 +56,7 @@ temp/
 # Prisma
 .env
 prisma/.env
+
+# IDE build outputs
+services/*/bin/
+
