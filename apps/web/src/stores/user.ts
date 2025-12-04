@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import type { User, UserDevice, LoginRequest, LoginResponse } from '@/types'
 import { authApi } from '@/api/auth'
 import { userApi } from '@/api/user'
+import { useWebSocketStore } from './websocket'
 
 interface UserState {
   user: User | null
@@ -51,6 +52,14 @@ export const useUserStore = defineStore('user', {
 
         const response = await authApi.login(request)
         this.setAuth(response)
+
+        // Connect WebSocket after successful login
+        const wsStore = useWebSocketStore()
+        wsStore.connect().catch((error) => {
+          console.warn('WebSocket connection failed:', error)
+          // Don't fail login if WebSocket fails - user can still use REST APIs
+        })
+
         return response
       } finally {
         this.loading = false
@@ -68,6 +77,10 @@ export const useUserStore = defineStore('user', {
 
     async logout() {
       try {
+        // Disconnect WebSocket first
+        const wsStore = useWebSocketStore()
+        wsStore.disconnect()
+
         await authApi.logout()
       } finally {
         this.clearAuth()
@@ -90,6 +103,14 @@ export const useUserStore = defineStore('user', {
         const user = await userApi.getCurrentUser()
         this.user = user
         this.isLoggedIn = true
+
+        // Connect WebSocket if not already connected
+        const wsStore = useWebSocketStore()
+        if (wsStore.isDisconnected) {
+          wsStore.connect().catch((error) => {
+            console.warn('WebSocket connection failed:', error)
+          })
+        }
       } catch {
         this.clearAuth()
       }
@@ -141,6 +162,11 @@ export const useUserStore = defineStore('user', {
         this.refreshToken = response.refreshToken
         localStorage.setItem('token', response.token)
         localStorage.setItem('refreshToken', response.refreshToken)
+
+        // Update WebSocket with new token
+        const wsStore = useWebSocketStore()
+        wsStore.updateToken(response.token)
+
         return true
       } catch {
         this.clearAuth()

@@ -75,15 +75,15 @@ class WebSocketService {
 
   private status: ConnectionStatus = 'disconnected'
   private seqCounter: number = 0
-  private pendingRequests: Map<string, { resolve: (data: unknown) => void; reject: (error: Error) => void; timeout: NodeJS.Timeout }> = new Map()
+  private pendingRequests: Map<string, { resolve: (data: unknown) => void; reject: (error: Error) => void; timeout: ReturnType<typeof setTimeout> }> = new Map()
 
   private reconnectAttempts: number = 0
   private maxReconnectAttempts: number = 10
   private reconnectDelay: number = 1000
   private maxReconnectDelay: number = 30000
-  private reconnectTimer: NodeJS.Timeout | null = null
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
-  private heartbeatInterval: NodeJS.Timeout | null = null
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null
   private heartbeatIntervalMs: number = 30000
 
   private handlers: WebSocketEventHandlers = {}

@@ -4,10 +4,12 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useChatStore } from '@/stores/chat'
+import { useWebSocketStore } from '@/stores/websocket'
 
 const router = useRouter()
 const userStore = useUserStore()
 const chatStore = useChatStore()
+const wsStore = useWebSocketStore()
 
 const activeTab = ref<'messages' | 'contacts' | 'groups'>('messages')
 const searchQuery = ref('')
@@ -23,6 +25,34 @@ const filteredConversations = computed(() => {
 })
 
 const totalUnread = computed(() => chatStore.totalUnreadCount)
+
+const connectionStatusText = computed(() => {
+  switch (wsStore.status) {
+    case 'connected':
+      return 'Connected'
+    case 'connecting':
+      return 'Connecting...'
+    case 'reconnecting':
+      return `Reconnecting (${wsStore.reconnectAttempt})...`
+    case 'disconnected':
+      return 'Disconnected'
+    default:
+      return ''
+  }
+})
+const connectionStatusColor = computed(() => {
+  switch (wsStore.status) {
+    case 'connected':
+      return '#67c23a' // green
+    case 'connecting':
+    case 'reconnecting':
+      return '#e6a23c' // yellow
+    case 'disconnected':
+      return '#f56c6c' // red
+    default:
+      return '#909399'
+  }
+})
 
 onMounted(async () => {
   try {
@@ -183,6 +213,13 @@ function getLastMessagePreview(conv: any) {
     <!-- Conversation List -->
     <div class="conversation-list">
       <div class="conversation-list-header">
+        <div class="connection-status">
+          <span
+            class="status-dot"
+            :style="{ backgroundColor: connectionStatusColor }"
+          ></span>
+          <span class="status-text">{{ connectionStatusText }}</span>
+        </div>
         <el-input
           v-model="searchQuery"
           placeholder="Search"
