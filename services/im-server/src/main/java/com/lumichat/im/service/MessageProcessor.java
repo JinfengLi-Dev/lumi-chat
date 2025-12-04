@@ -2,6 +2,7 @@ package com.lumichat.im.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lumichat.im.protocol.*;
+import com.lumichat.im.security.JwtTokenValidator;
 import com.lumichat.im.session.SessionManager;
 import com.lumichat.im.session.UserSession;
 import io.netty.channel.ChannelHandlerContext;
@@ -21,18 +22,28 @@ public class MessageProcessor {
     private final SessionManager sessionManager;
     private final ObjectMapper objectMapper;
     private final StringRedisTemplate redisTemplate;
+    private final JwtTokenValidator jwtTokenValidator;
 
     public void handleLogin(ChannelHandlerContext ctx, Packet packet) {
         try {
             LoginData loginData = objectMapper.convertValue(packet.getData(), LoginData.class);
 
-            // TODO: Validate token with API server
-            // For now, extract userId from a mock token format "userId:deviceId"
-            Long userId = extractUserIdFromToken(loginData.getToken());
+            // Validate JWT token
+            JwtTokenValidator.TokenInfo tokenInfo = jwtTokenValidator.validateToken(loginData.getToken());
 
-            if (userId != null) {
-                sessionManager.addSession(ctx.channel(), userId,
-                        loginData.getDeviceId(), loginData.getDeviceType());
+            if (tokenInfo != null) {
+                Long userId = tokenInfo.userId();
+                String deviceId = loginData.getDeviceId();
+
+                // Verify deviceId matches token if provided in token
+                if (tokenInfo.deviceId() != null && !tokenInfo.deviceId().equals(deviceId)) {
+                    log.warn("Device ID mismatch: token={}, request={}", tokenInfo.deviceId(), deviceId);
+                    sendResponse(ctx, ProtocolType.LOGIN_RESPONSE, packet.getSeq(),
+                            Map.of("success", false, "error", "Device ID mismatch"));
+                    return;
+                }
+
+                sessionManager.addSession(ctx.channel(), userId, deviceId, loginData.getDeviceType());
 
                 // Publish online status to Redis for other services
                 redisTemplate.opsForSet().add("online:users", userId.toString());
@@ -40,10 +51,10 @@ public class MessageProcessor {
                 sendResponse(ctx, ProtocolType.LOGIN_RESPONSE, packet.getSeq(),
                         Map.of("success", true, "userId", userId));
 
-                log.info("User logged in: userId={}, deviceId={}", userId, loginData.getDeviceId());
+                log.info("User logged in: userId={}, deviceId={}", userId, deviceId);
             } else {
                 sendResponse(ctx, ProtocolType.LOGIN_RESPONSE, packet.getSeq(),
-                        Map.of("success", false, "error", "Invalid token"));
+                        Map.of("success", false, "error", "Invalid or expired token"));
             }
         } catch (Exception e) {
             log.error("Login failed", e);
@@ -225,13 +236,4 @@ public class MessageProcessor {
         }
     }
 
-    private Long extractUserIdFromToken(String token) {
-        // TODO: Implement proper JWT validation
-        // For development, accept format "userId" directly
-        try {
-            return Long.parseLong(token);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
 }

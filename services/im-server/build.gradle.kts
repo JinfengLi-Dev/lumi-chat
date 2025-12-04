@@ -34,6 +34,11 @@ dependencies {
     // JSON processing
     implementation("com.fasterxml.jackson.core:jackson-databind")
 
+    // JWT for token validation (same library as API server)
+    implementation("io.jsonwebtoken:jjwt-api:0.12.6")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+
     // Utilities
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
