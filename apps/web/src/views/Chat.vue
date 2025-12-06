@@ -5,6 +5,9 @@ import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useChatStore } from '@/stores/chat'
 import { useWebSocketStore } from '@/stores/websocket'
+import AddFriendDialog from '@/components/contact/AddFriendDialog.vue'
+import FriendRequestsDialog from '@/components/contact/FriendRequestsDialog.vue'
+import CreateGroupDialog from '@/components/group/CreateGroupDialog.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -14,6 +17,9 @@ const wsStore = useWebSocketStore()
 const activeTab = ref<'messages' | 'contacts' | 'groups'>('messages')
 const searchQuery = ref('')
 const showSettingsMenu = ref(false)
+const showAddFriendDialog = ref(false)
+const showFriendRequestsDialog = ref(false)
+const showCreateGroupDialog = ref(false)
 
 const filteredConversations = computed(() => {
   if (!searchQuery.value) return chatStore.sortedConversations
@@ -73,10 +79,26 @@ function selectConversation(id: number) {
 
 function handleAddAction(action: string) {
   if (action === 'friend') {
-    // Open add friend dialog
+    showAddFriendDialog.value = true
   } else if (action === 'group') {
-    // Open create group dialog
+    showCreateGroupDialog.value = true
+  } else if (action === 'requests') {
+    showFriendRequestsDialog.value = true
   }
+}
+
+function handleFriendRequestSent() {
+  // Optionally refresh friends list or show notification
+}
+
+function handleFriendRequestHandled() {
+  // Refresh conversations to show new friend conversations
+  chatStore.fetchConversations()
+}
+
+function handleGroupCreated() {
+  // Refresh conversations to show new group conversation
+  chatStore.fetchConversations()
 }
 
 async function handleLogout() {
@@ -187,6 +209,7 @@ function getLastMessagePreview(conv: any) {
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item command="friend">Add Friend</el-dropdown-item>
+              <el-dropdown-item command="requests">Friend Requests</el-dropdown-item>
               <el-dropdown-item command="group">Create Group</el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -279,5 +302,19 @@ function getLastMessagePreview(conv: any) {
         Select a conversation to start chatting
       </div>
     </router-view>
+
+    <!-- Dialogs -->
+    <AddFriendDialog
+      v-model="showAddFriendDialog"
+      @request-sent="handleFriendRequestSent"
+    />
+    <FriendRequestsDialog
+      v-model="showFriendRequestsDialog"
+      @request-handled="handleFriendRequestHandled"
+    />
+    <CreateGroupDialog
+      v-model="showCreateGroupDialog"
+      @group-created="handleGroupCreated"
+    />
   </div>
 </template>

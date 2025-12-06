@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { User, UserDevice, ApiResponse, PagedResponse } from '@/types'
+import type { User, UserDevice, ApiResponse } from '@/types'
 
 export const userApi = {
   async getCurrentUser(): Promise<User> {
@@ -34,8 +34,8 @@ export const userApi = {
     await apiClient.delete('/devices')
   },
 
-  async searchUsers(query: string): Promise<PagedResponse<User>> {
-    const response = await apiClient.get<ApiResponse<PagedResponse<User>>>('/users/search', {
+  async searchUsers(query: string): Promise<User[]> {
+    const response = await apiClient.get<ApiResponse<User[]>>('/users/search', {
       params: { q: query },
     })
     return response.data.data
