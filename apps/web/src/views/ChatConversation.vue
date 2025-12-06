@@ -4,6 +4,8 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
+import { fileApi } from '@/api'
+import type { UploadProgress } from '@/api/file'
 
 const route = useRoute()
 const chatStore = useChatStore()
@@ -13,6 +15,10 @@ const messageInput = ref('')
 const messageListRef = ref<HTMLDivElement>()
 const loading = ref(false)
 const showInfoPanel = ref(true)
+const imageInputRef = ref<HTMLInputElement>()
+const fileInputRef = ref<HTMLInputElement>()
+const uploadProgress = ref<UploadProgress | null>(null)
+const isUploading = ref(false)
 
 const conversationId = computed(() => Number(route.params.id))
 const conversation = computed(() => chatStore.currentConversation)
@@ -98,6 +104,90 @@ function isSelf(senderId: number) {
 function handleContextMenu(e: MouseEvent, _msg: any) {
   e.preventDefault()
   // Show context menu
+}
+
+function triggerImageUpload() {
+  imageInputRef.value?.click()
+}
+
+function triggerFileUpload() {
+  fileInputRef.value?.click()
+}
+
+async function handleImageSelect(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+
+  if (!file.type.startsWith('image/')) {
+    ElMessage.error('Please select an image file')
+    return
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    ElMessage.error('Image size must be less than 10MB')
+    return
+  }
+
+  await uploadAndSendFile(file, 'image')
+  if (imageInputRef.value) {
+    imageInputRef.value.value = ''
+  }
+}
+
+async function handleFileSelect(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+
+  if (file.size > 50 * 1024 * 1024) {
+    ElMessage.error('File size must be less than 50MB')
+    return
+  }
+
+  await uploadAndSendFile(file, 'file')
+  if (fileInputRef.value) {
+    fileInputRef.value.value = ''
+  }
+}
+
+async function uploadAndSendFile(file: File, type: 'image' | 'file') {
+  isUploading.value = true
+  uploadProgress.value = { loaded: 0, total: file.size, percent: 0 }
+
+  try {
+    const fileInfo = await fileApi.uploadFile(file, type, (progress) => {
+      uploadProgress.value = progress
+    })
+
+    // Prepare message metadata
+    const metadata = {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      fileUrl: fileInfo.url,
+      ...(type === 'image' && fileInfo.width && {
+        width: fileInfo.width,
+        height: fileInfo.height,
+        thumbnailUrl: fileInfo.thumbnailUrl,
+      }),
+    }
+
+    // Send message with file URL as content
+    await chatStore.sendMessage(
+      conversationId.value,
+      type,
+      fileInfo.url,
+      metadata
+    )
+
+    await nextTick()
+    scrollToBottom()
+    ElMessage.success(`${type === 'image' ? 'Image' : 'File'} sent successfully`)
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || `Failed to upload ${type}`)
+  } finally {
+    isUploading.value = false
+    uploadProgress.value = null
+  }
 }
 
 onMounted(() => {
@@ -207,13 +297,49 @@ onMounted(() => {
 
     <!-- Input Area -->
     <div class="chat-area-input">
+      <!-- Hidden file inputs -->
+      <input
+        ref="imageInputRef"
+        type="file"
+        accept="image/*"
+        hidden
+        @change="handleImageSelect"
+      />
+      <input
+        ref="fileInputRef"
+        type="file"
+        hidden
+        @change="handleFileSelect"
+      />
+
       <div class="toolbar">
-        <el-icon class="tool-btn"><PictureFilled /></el-icon>
-        <el-icon class="tool-btn"><Folder /></el-icon>
-        <el-icon class="tool-btn"><VideoCamera /></el-icon>
-        <el-icon class="tool-btn"><Location /></el-icon>
-        <el-icon class="tool-btn"><User /></el-icon>
-        <el-icon class="tool-btn"><Postcard /></el-icon>
+        <el-tooltip content="Send Image" placement="top">
+          <el-icon class="tool-btn" @click="triggerImageUpload"><PictureFilled /></el-icon>
+        </el-tooltip>
+        <el-tooltip content="Send File" placement="top">
+          <el-icon class="tool-btn" @click="triggerFileUpload"><Folder /></el-icon>
+        </el-tooltip>
+        <el-tooltip content="Video (Coming Soon)" placement="top">
+          <el-icon class="tool-btn disabled"><VideoCamera /></el-icon>
+        </el-tooltip>
+        <el-tooltip content="Location (Coming Soon)" placement="top">
+          <el-icon class="tool-btn disabled"><Location /></el-icon>
+        </el-tooltip>
+        <el-tooltip content="Contact Card (Coming Soon)" placement="top">
+          <el-icon class="tool-btn disabled"><User /></el-icon>
+        </el-tooltip>
+        <el-tooltip content="Group Card (Coming Soon)" placement="top">
+          <el-icon class="tool-btn disabled"><Postcard /></el-icon>
+        </el-tooltip>
+      </div>
+
+      <!-- Upload Progress -->
+      <div v-if="isUploading && uploadProgress" class="upload-progress">
+        <el-progress
+          :percentage="uploadProgress.percent"
+          :stroke-width="4"
+          :show-text="true"
+        />
       </div>
 
       <div class="input-area">
