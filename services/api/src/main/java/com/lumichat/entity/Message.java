@@ -43,6 +43,7 @@ public class Message {
     private String content;
 
     @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String metadata;
 
     @Column(length = 64)

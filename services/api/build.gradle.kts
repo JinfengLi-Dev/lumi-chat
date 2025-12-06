@@ -59,9 +59,14 @@ dependencies {
     testImplementation("org.springframework.security:spring-security-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("com.h2database:h2")
-    testImplementation("org.testcontainers:testcontainers:1.20.4")
-    testImplementation("org.testcontainers:junit-jupiter:1.20.4")
-    testImplementation("org.testcontainers:postgresql:1.20.4")
+    // Testcontainers 2.0.2+ fixes Docker 29 API version issue (requires API 1.44+)
+    // Docker 29+ minimum API is 1.44, Testcontainers 1.x uses 1.32 which is rejected
+    // Note: Testcontainers 2.0 renamed modules with testcontainers- prefix
+    // Must use explicit versions to override Spring Boot's dependency management (1.19.8)
+    // See: https://github.com/testcontainers/testcontainers-java/issues/11212
+    testImplementation("org.testcontainers:testcontainers:2.0.2")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.2")
+    testImplementation("org.testcontainers:testcontainers-postgresql:2.0.2")
 }
 
 tasks.withType<Test> {
