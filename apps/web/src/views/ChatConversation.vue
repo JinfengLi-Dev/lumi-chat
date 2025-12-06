@@ -6,6 +6,9 @@ import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import { fileApi } from '@/api'
 import type { UploadProgress } from '@/api/file'
+import type { Message } from '@/types'
+import MessageContextMenu from '@/components/chat/MessageContextMenu.vue'
+import ForwardMessageDialog from '@/components/chat/ForwardMessageDialog.vue'
 
 const route = useRoute()
 const chatStore = useChatStore()
@@ -19,6 +22,19 @@ const imageInputRef = ref<HTMLInputElement>()
 const fileInputRef = ref<HTMLInputElement>()
 const uploadProgress = ref<UploadProgress | null>(null)
 const isUploading = ref(false)
+
+// Context menu state
+const contextMenuVisible = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const selectedMessage = ref<Message | null>(null)
+
+// Forward dialog state
+const showForwardDialog = ref(false)
+const messageToForward = ref<Message | null>(null)
+
+// Quote state
+const quotedMessage = ref<Message | null>(null)
 
 const conversationId = computed(() => Number(route.params.id))
 const conversation = computed(() => chatStore.currentConversation)
@@ -101,9 +117,64 @@ function isSelf(senderId: number) {
   return senderId === userStore.userId
 }
 
-function handleContextMenu(e: MouseEvent, _msg: any) {
+function handleContextMenu(e: MouseEvent, msg: Message) {
   e.preventDefault()
-  // Show context menu
+  selectedMessage.value = msg
+  contextMenuX.value = e.clientX
+  contextMenuY.value = e.clientY
+  contextMenuVisible.value = true
+}
+
+function handleContextMenuCopy() {
+  // Copy is handled in the context menu component
+}
+
+async function handleContextMenuRecall() {
+  if (!selectedMessage.value) return
+
+  try {
+    await chatStore.recallMessage(selectedMessage.value.msgId)
+    ElMessage.success('Message recalled')
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || 'Failed to recall message')
+  }
+}
+
+function handleContextMenuForward() {
+  if (!selectedMessage.value) return
+  messageToForward.value = selectedMessage.value
+  showForwardDialog.value = true
+}
+
+async function handleForwardConfirm(conversationIds: number[]) {
+  if (!messageToForward.value) return
+
+  try {
+    await chatStore.forwardMessage(messageToForward.value.msgId, conversationIds)
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || 'Failed to forward message')
+  }
+}
+
+async function handleContextMenuDelete() {
+  if (!selectedMessage.value) return
+
+  try {
+    await chatStore.deleteMessage(selectedMessage.value.msgId)
+    ElMessage.success('Message deleted')
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || 'Failed to delete message')
+  }
+}
+
+function handleContextMenuQuote() {
+  if (!selectedMessage.value) return
+  quotedMessage.value = selectedMessage.value
+  // Focus the input
+}
+
+function clearQuotedMessage() {
+  quotedMessage.value = null
 }
 
 function triggerImageUpload() {
@@ -342,6 +413,20 @@ onMounted(() => {
         />
       </div>
 
+      <!-- Quoted Message Preview -->
+      <div v-if="quotedMessage" class="quoted-message-preview">
+        <div class="quoted-content">
+          <span class="quoted-label">Replying to {{ quotedMessage.sender?.nickname || 'Unknown' }}:</span>
+          <span class="quoted-text">
+            {{ quotedMessage.msgType === 'text'
+               ? (quotedMessage.content.length > 50 ? quotedMessage.content.slice(0, 50) + '...' : quotedMessage.content)
+               : `[${quotedMessage.msgType}]`
+            }}
+          </span>
+        </div>
+        <el-icon class="close-quote" @click="clearQuotedMessage"><Close /></el-icon>
+      </div>
+
       <div class="input-area">
         <textarea
           v-model="messageInput"
@@ -402,4 +487,25 @@ onMounted(() => {
       </div>
     </div>
   </div>
+
+  <!-- Context Menu -->
+  <MessageContextMenu
+    v-model:visible="contextMenuVisible"
+    :x="contextMenuX"
+    :y="contextMenuY"
+    :message="selectedMessage"
+    :is-self="selectedMessage ? isSelf(selectedMessage.senderId) : false"
+    @copy="handleContextMenuCopy"
+    @recall="handleContextMenuRecall"
+    @forward="handleContextMenuForward"
+    @delete="handleContextMenuDelete"
+    @quote="handleContextMenuQuote"
+  />
+
+  <!-- Forward Dialog -->
+  <ForwardMessageDialog
+    v-model="showForwardDialog"
+    :message="messageToForward"
+    @forward="handleForwardConfirm"
+  />
 </template>
