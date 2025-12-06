@@ -1,5 +1,6 @@
 package com.lumichat.config;
 
+import com.lumichat.security.InternalServiceFilter;
 import com.lumichat.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,6 +28,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final InternalServiceFilter internalServiceFilter;
 
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
@@ -51,8 +53,11 @@ public class SecurityConfig {
                 ).permitAll()
                 // File retrieval endpoints are public (files are accessed by unique ID)
                 .requestMatchers(HttpMethod.GET, "/files/{id}", "/files/{id}/download", "/files/{id}/info").permitAll()
+                // Internal service endpoints (authenticated via InternalServiceFilter)
+                .requestMatchers("/internal/**").permitAll()
                 .anyRequest().authenticated()
             )
+            .addFilterBefore(internalServiceFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

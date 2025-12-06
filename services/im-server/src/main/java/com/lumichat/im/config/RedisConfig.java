@@ -1,6 +1,7 @@
 package com.lumichat.im.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lumichat.im.client.ApiClient;
 import com.lumichat.im.protocol.Packet;
 import com.lumichat.im.protocol.ProtocolType;
 import com.lumichat.im.service.MessageProcessor;
@@ -15,6 +16,7 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.listener.PatternTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -25,6 +27,7 @@ public class RedisConfig {
     private final SessionManager sessionManager;
     private final MessageProcessor messageProcessor;
     private final ObjectMapper objectMapper;
+    private final ApiClient apiClient;
 
     @Bean
     public RedisMessageListenerContainer container(RedisConnectionFactory connectionFactory) {
@@ -50,24 +53,40 @@ public class RedisConfig {
                 Long conversationId = ((Number) data.get("conversationId")).longValue();
                 Long senderId = ((Number) data.get("senderId")).longValue();
                 String senderDeviceId = (String) data.get("senderDeviceId");
+                String msgId = (String) data.get("msgId");
 
                 @SuppressWarnings("unchecked")
                 Map<String, Object> messageData = (Map<String, Object>) data.get("message");
 
-                // TODO: Get conversation participants from API/cache
-                // For now, broadcast to sender's other devices as a demo
-                var senderSessions = sessionManager.getSessionsByUserId(senderId);
-                for (var session : senderSessions) {
-                    // Don't send back to the originating device
-                    if (!session.getDeviceId().equals(senderDeviceId)) {
+                // Get conversation participants from API
+                List<Long> participants = apiClient.getConversationParticipants(conversationId);
+
+                if (participants.isEmpty()) {
+                    log.warn("No participants found for conversation {}", conversationId);
+                    return;
+                }
+
+                // Broadcast message to all participants
+                for (Long participantId : participants) {
+                    var sessions = sessionManager.getSessionsByUserId(participantId);
+                    for (var session : sessions) {
+                        // Don't send back to the originating device
+                        if (participantId.equals(senderId) && session.getDeviceId().equals(senderDeviceId)) {
+                            continue;
+                        }
+
                         Packet packet = Packet.of(ProtocolType.RECEIVE_MESSAGE, Map.of(
                                 "conversationId", conversationId,
                                 "senderId", senderId,
+                                "msgId", msgId,
                                 "message", messageData
                         ));
-                        messageProcessor.sendToUserDevice(senderId, session.getDeviceId(), packet);
+                        messageProcessor.sendToUserDevice(participantId, session.getDeviceId(), packet);
                     }
                 }
+
+                log.debug("Message broadcast to {} participants for conversation {}",
+                        participants.size(), conversationId);
             } catch (Exception e) {
                 log.error("Failed to process Redis message", e);
             }
@@ -83,8 +102,23 @@ public class RedisConfig {
                 Long userId = ((Number) data.get("userId")).longValue();
                 Long conversationId = ((Number) data.get("conversationId")).longValue();
 
-                // TODO: Send typing notification to other participants
-                log.debug("Typing notification: userId={}, conversationId={}", userId, conversationId);
+                // Get conversation participants and send typing notification
+                List<Long> participants = apiClient.getConversationParticipants(conversationId);
+
+                for (Long participantId : participants) {
+                    // Don't notify the user who is typing
+                    if (participantId.equals(userId)) {
+                        continue;
+                    }
+
+                    Packet packet = Packet.of(ProtocolType.TYPING_NOTIFY, Map.of(
+                            "conversationId", conversationId,
+                            "userId", userId
+                    ));
+                    messageProcessor.sendToUser(participantId, packet);
+                }
+
+                log.debug("Typing notification sent: userId={}, conversationId={}", userId, conversationId);
             } catch (Exception e) {
                 log.error("Failed to process typing notification", e);
             }
@@ -127,9 +161,29 @@ public class RedisConfig {
                 Map<String, Object> data = objectMapper.readValue(message.getBody(), Map.class);
                 Long userId = ((Number) data.get("userId")).longValue();
                 String msgId = (String) data.get("msgId");
+                Long conversationId = data.get("conversationId") != null
+                        ? ((Number) data.get("conversationId")).longValue()
+                        : null;
 
-                // TODO: Broadcast recall to all conversation participants
-                log.info("Message recalled: userId={}, msgId={}", userId, msgId);
+                if (conversationId == null || conversationId == 0) {
+                    log.warn("Recall notification missing conversationId for msgId={}", msgId);
+                    return;
+                }
+
+                // Get conversation participants and broadcast recall notification
+                List<Long> participants = apiClient.getConversationParticipants(conversationId);
+
+                for (Long participantId : participants) {
+                    Packet packet = Packet.of(ProtocolType.RECALL_NOTIFY, Map.of(
+                            "conversationId", conversationId,
+                            "msgId", msgId,
+                            "recalledBy", userId
+                    ));
+                    messageProcessor.sendToUser(participantId, packet);
+                }
+
+                log.info("Recall notification broadcast: userId={}, msgId={}, participants={}",
+                        userId, msgId, participants.size());
             } catch (Exception e) {
                 log.error("Failed to process recall", e);
             }

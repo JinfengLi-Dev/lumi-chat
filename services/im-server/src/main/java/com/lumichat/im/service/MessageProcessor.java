@@ -1,6 +1,7 @@
 package com.lumichat.im.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lumichat.im.client.ApiClient;
 import com.lumichat.im.protocol.*;
 import com.lumichat.im.security.JwtTokenValidator;
 import com.lumichat.im.session.SessionManager;
@@ -12,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -23,6 +25,7 @@ public class MessageProcessor {
     private final ObjectMapper objectMapper;
     private final StringRedisTemplate redisTemplate;
     private final JwtTokenValidator jwtTokenValidator;
+    private final ApiClient apiClient;
 
     public void handleLogin(ChannelHandlerContext ctx, Packet packet) {
         try {
@@ -88,12 +91,35 @@ public class MessageProcessor {
         try {
             ChatMessageData msgData = objectMapper.convertValue(packet.getData(), ChatMessageData.class);
 
-            // TODO: Persist message to database via API call
+            // Persist message to database via API call
+            ApiClient.PersistMessageRequest persistRequest = new ApiClient.PersistMessageRequest(
+                    msgData.getConversationId(),
+                    msgData.getMsgType(),
+                    msgData.getContent(),
+                    msgData.getMetadata() != null ? objectMapper.writeValueAsString(msgData.getMetadata()) : null,
+                    msgData.getQuoteMsgId(),
+                    msgData.getAtUserIds(),
+                    msgData.getMsgId()
+            );
 
-            // Send ACK back to sender
+            ApiClient.MessagePersistResult persistResult = apiClient.persistMessage(
+                    senderSession.getUserId(),
+                    senderSession.getDeviceId(),
+                    persistRequest
+            );
+
+            if (!persistResult.success()) {
+                log.error("Failed to persist message: {}", persistResult.error());
+                sendResponse(ctx, ProtocolType.CHAT_MESSAGE_ACK, packet.getSeq(),
+                        Map.of("success", false, "error", persistResult.error()));
+                return;
+            }
+
+            // Send ACK back to sender with server-assigned msgId
             sendResponse(ctx, ProtocolType.CHAT_MESSAGE_ACK, packet.getSeq(),
-                    Map.of("msgId", msgData.getMsgId(),
-                            "serverTimestamp", System.currentTimeMillis(),
+                    Map.of("clientMsgId", msgData.getMsgId(),
+                            "msgId", persistResult.msgId(),
+                            "serverTimestamp", persistResult.serverTimestamp(),
                             "success", true));
 
             // Publish message to Redis for fan-out to all participants
@@ -102,11 +128,13 @@ public class MessageProcessor {
                     "senderId", senderSession.getUserId(),
                     "senderDeviceId", senderSession.getDeviceId(),
                     "conversationId", msgData.getConversationId(),
+                    "msgId", persistResult.msgId(),
                     "message", msgData
             ));
             redisTemplate.convertAndSend("im:messages", messageJson);
 
-            log.debug("Message processed: msgId={}, from={}", msgData.getMsgId(), senderSession.getUserId());
+            log.debug("Message processed: clientMsgId={}, serverMsgId={}, from={}",
+                    msgData.getMsgId(), persistResult.msgId(), senderSession.getUserId());
         } catch (Exception e) {
             log.error("Failed to process chat message", e);
             sendResponse(ctx, ProtocolType.CHAT_MESSAGE_ACK, packet.getSeq(),
@@ -167,18 +195,38 @@ public class MessageProcessor {
             @SuppressWarnings("unchecked")
             Map<String, Object> data = (Map<String, Object>) packet.getData();
             String msgId = (String) data.get("msgId");
+            Long conversationId = data.get("conversationId") != null
+                    ? ((Number) data.get("conversationId")).longValue()
+                    : null;
 
-            // TODO: Validate ownership and time window via API
+            // Validate ownership and time window via API, then persist recall
+            ApiClient.RecallResult recallResult = apiClient.recallMessage(session.getUserId(), msgId);
 
-            // Publish recall notification to Redis
+            if (!recallResult.success()) {
+                log.warn("Recall failed for msgId={}: {}", msgId, recallResult.error());
+                sendResponse(ctx, ProtocolType.RECALL_ACK, packet.getSeq(),
+                        Map.of("success", false, "error", recallResult.error()));
+                return;
+            }
+
+            // Send ACK back to sender
+            sendResponse(ctx, ProtocolType.RECALL_ACK, packet.getSeq(),
+                    Map.of("success", true, "msgId", msgId));
+
+            // Publish recall notification to Redis for broadcast
             String recallJson = objectMapper.writeValueAsString(Map.of(
                     "type", "recall",
                     "userId", session.getUserId(),
-                    "msgId", msgId
+                    "msgId", msgId,
+                    "conversationId", conversationId != null ? conversationId : 0
             ));
             redisTemplate.convertAndSend("im:recall", recallJson);
+
+            log.info("Message recalled: userId={}, msgId={}", session.getUserId(), msgId);
         } catch (Exception e) {
             log.error("Failed to process recall", e);
+            sendResponse(ctx, ProtocolType.RECALL_ACK, packet.getSeq(),
+                    Map.of("success", false, "error", e.getMessage()));
         }
     }
 
@@ -186,10 +234,42 @@ public class MessageProcessor {
         UserSession session = sessionManager.getSessionByChannel(ctx.channel());
         if (session == null) return;
 
-        // TODO: Fetch missed messages from API and send to client
-        sendResponse(ctx, ProtocolType.SYNC_RESPONSE, packet.getSeq(),
-                Map.of("messages", java.util.Collections.emptyList(),
-                        "syncCursor", System.currentTimeMillis()));
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) packet.getData();
+            Long conversationId = data.get("conversationId") != null
+                    ? ((Number) data.get("conversationId")).longValue()
+                    : null;
+            Long afterMsgId = data.get("afterMsgId") != null
+                    ? ((Number) data.get("afterMsgId")).longValue()
+                    : null;
+            int limit = data.get("limit") != null
+                    ? ((Number) data.get("limit")).intValue()
+                    : 50;
+
+            if (conversationId == null) {
+                sendResponse(ctx, ProtocolType.SYNC_RESPONSE, packet.getSeq(),
+                        Map.of("success", false, "error", "conversationId is required"));
+                return;
+            }
+
+            // Fetch messages from API
+            List<Map<String, Object>> messages = apiClient.getMessagesForSync(
+                    session.getUserId(), conversationId, afterMsgId, limit);
+
+            sendResponse(ctx, ProtocolType.SYNC_RESPONSE, packet.getSeq(),
+                    Map.of("success", true,
+                            "messages", messages,
+                            "conversationId", conversationId,
+                            "syncCursor", System.currentTimeMillis()));
+
+            log.debug("Sync response sent: userId={}, conversationId={}, messageCount={}",
+                    session.getUserId(), conversationId, messages.size());
+        } catch (Exception e) {
+            log.error("Failed to process sync request", e);
+            sendResponse(ctx, ProtocolType.SYNC_RESPONSE, packet.getSeq(),
+                    Map.of("success", false, "error", e.getMessage()));
+        }
     }
 
     public void handleDisconnect(UserSession session) {

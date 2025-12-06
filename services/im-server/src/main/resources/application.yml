@@ -16,6 +16,9 @@ app:
     # Must match API server's secret for token validation
     secret: lumi-chat-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256
 
+api:
+  base-url: http://localhost:8080/api/v1
+
 im:
   websocket:
     port: 7901

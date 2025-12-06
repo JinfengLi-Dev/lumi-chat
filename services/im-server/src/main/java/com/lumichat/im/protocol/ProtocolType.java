@@ -18,7 +18,8 @@ public final class ProtocolType {
     public static final int CHAT_MESSAGE_ACK = 110;
     public static final int RECEIVE_MESSAGE = 111;
     public static final int TYPING_NOTIFY = 112;
-    public static final int RECALL_NOTIFY = 113;
+    public static final int RECALL_ACK = 113;
+    public static final int RECALL_NOTIFY = 114;
     public static final int SYNC_RESPONSE = 120;
 
     // System Messages
