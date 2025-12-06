@@ -626,16 +626,22 @@ Success Criteria:
 
 Backend Testing Progress:
 - [x] Unit tests for all 8 service classes (157 tests)
-- [x] Integration tests for AuthController (15 tests)
-- [x] Integration tests for UserController (17 tests)
-- [x] Service layer coverage: 93%
+- [x] Integration tests for AuthController (14 tests)
+- [x] Integration tests for UserController (6 tests)
+- [x] Integration tests for FriendController (22 tests)
+- [x] Integration tests for GroupController (24 tests)
+- [x] Integration tests for DeviceController (8 tests)
+- [x] Integration tests for ConversationController (19 tests)
+- [x] Integration tests for MessageController (18 tests)
+- [x] Integration tests for FileController (19 tests)
+- [x] Service layer coverage: 94%
 - [x] Entity layer coverage: 100%
 - [x] Security layer coverage: 98%
 - [x] Config layer coverage: 100%
 - [x] JaCoCo coverage reporting configured
-- [x] Overall backend coverage: 81% (189 tests total)
-- [ ] Integration tests for remaining controllers (pending)
-- [ ] Target: 95% coverage
+- [x] Overall backend coverage: 92% (301 tests total)
+- [x] All 8 controller integration tests complete
+- [ ] Target: 95% coverage (nearly achieved)
 
 Tests:
 - [ ] Load testing (1000+ concurrent users)
@@ -643,7 +649,7 @@ Tests:
 - [ ] Memory leak detection
 - [ ] SQL injection prevention
 
-Status: In Progress (81% coverage achieved, integration tests continuing)
+Status: In Progress (92% coverage achieved, 301 tests passing)
 
 ---
 
