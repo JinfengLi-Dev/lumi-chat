@@ -634,13 +634,14 @@ Backend Testing Progress:
 - [x] Integration tests for ConversationController (19 tests)
 - [x] Integration tests for MessageController (18 tests)
 - [x] Integration tests for FileController (19 tests)
+- [x] Integration tests for InternalApiController (11 tests)
 - [x] Service layer coverage: 94%
 - [x] Entity layer coverage: 100%
 - [x] Security layer coverage: 98%
 - [x] Config layer coverage: 100%
 - [x] JaCoCo coverage reporting configured
-- [x] Overall backend coverage: 92% (301 tests total)
-- [x] All 8 controller integration tests complete
+- [x] Overall backend coverage: 92% (312 tests total)
+- [x] All 9 controller integration tests complete
 - [ ] Target: 95% coverage (nearly achieved)
 
 Tests:
@@ -649,7 +650,7 @@ Tests:
 - [ ] Memory leak detection
 - [ ] SQL injection prevention
 
-Status: In Progress (92% coverage achieved, 301 tests passing)
+Status: In Progress (92% coverage achieved, 312 tests passing)
 
 ---
 
