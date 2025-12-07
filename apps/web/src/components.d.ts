@@ -8,6 +8,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AddFriendDialog: typeof import('./components/contact/AddFriendDialog.vue')['default']
+    ChangePasswordDialog: typeof import('./components/settings/ChangePasswordDialog.vue')['default']
     ConversationContextMenu: typeof import('./components/chat/ConversationContextMenu.vue')['default']
     CreateGroupDialog: typeof import('./components/group/CreateGroupDialog.vue')['default']
     EditProfileDialog: typeof import('./components/profile/EditProfileDialog.vue')['default']
