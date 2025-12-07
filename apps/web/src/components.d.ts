@@ -10,6 +10,7 @@ declare module 'vue' {
     AddFriendDialog: typeof import('./components/contact/AddFriendDialog.vue')['default']
     ConversationContextMenu: typeof import('./components/chat/ConversationContextMenu.vue')['default']
     CreateGroupDialog: typeof import('./components/group/CreateGroupDialog.vue')['default']
+    EditProfileDialog: typeof import('./components/profile/EditProfileDialog.vue')['default']
     ElAvatar: typeof import('element-plus/es')['ElAvatar']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCheckbox: typeof import('element-plus/es')['ElCheckbox']
