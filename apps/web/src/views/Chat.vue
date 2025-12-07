@@ -2,12 +2,17 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Top, BellFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useChatStore } from '@/stores/chat'
 import { useWebSocketStore } from '@/stores/websocket'
 import AddFriendDialog from '@/components/contact/AddFriendDialog.vue'
 import FriendRequestsDialog from '@/components/contact/FriendRequestsDialog.vue'
 import CreateGroupDialog from '@/components/group/CreateGroupDialog.vue'
+import FriendsList from '@/components/contact/FriendsList.vue'
+import GroupsList from '@/components/group/GroupsList.vue'
+import ConversationContextMenu from '@/components/chat/ConversationContextMenu.vue'
+import type { Conversation } from '@/types'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -20,6 +25,16 @@ const showSettingsMenu = ref(false)
 const showAddFriendDialog = ref(false)
 const showFriendRequestsDialog = ref(false)
 const showCreateGroupDialog = ref(false)
+
+// Component refs for FriendsList and GroupsList
+const friendsListRef = ref<InstanceType<typeof FriendsList>>()
+const groupsListRef = ref<InstanceType<typeof GroupsList>>()
+
+// Context menu state
+const contextMenuVisible = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const contextMenuConversation = ref<Conversation | null>(null)
 
 const filteredConversations = computed(() => {
   if (!searchQuery.value) return chatStore.sortedConversations
@@ -130,7 +145,7 @@ function formatTime(time?: string) {
   }
 }
 
-function getLastMessagePreview(conv: any) {
+function getLastMessagePreview(conv: Conversation) {
   const msg = conv.lastMessage
   if (!msg) return ''
 
@@ -155,6 +170,49 @@ function getLastMessagePreview(conv: any) {
       return '[Group Card]'
     default:
       return ''
+  }
+}
+
+// Handle opening conversation from FriendsList or GroupsList
+function handleOpenConversation(conversationId: number) {
+  selectConversation(conversationId)
+  // Switch to messages tab to show the conversation
+  activeTab.value = 'messages'
+}
+
+// Context menu handlers
+function handleConversationContextMenu(e: MouseEvent, conv: Conversation) {
+  e.preventDefault()
+  contextMenuConversation.value = conv
+  contextMenuX.value = e.clientX
+  contextMenuY.value = e.clientY
+  contextMenuVisible.value = true
+}
+
+function handleContextMenuPin(conv: Conversation) {
+  // Toggle pin status - would need API call
+  ElMessage.info(`${conv.isPinned ? 'Unpinned' : 'Pinned'} conversation`)
+}
+
+function handleContextMenuMute(conv: Conversation) {
+  // Toggle mute status - would need API call
+  ElMessage.info(`${conv.isMuted ? 'Unmuted' : 'Muted'} conversation`)
+}
+
+function handleContextMenuMarkRead(_conv: Conversation) {
+  // Mark as read - would need API call
+  // TODO: Call chatStore.markConversationRead(_conv.id)
+  ElMessage.success('Marked as read')
+}
+
+async function handleContextMenuDelete(_conv: Conversation) {
+  try {
+    // Would call API to delete conversation
+    // TODO: Call chatStore.deleteConversation(_conv.id)
+    ElMessage.success('Conversation deleted')
+    await chatStore.fetchConversations()
+  } catch {
+    ElMessage.error('Failed to delete conversation')
   }
 }
 </script>
@@ -253,45 +311,70 @@ function getLastMessagePreview(conv: any) {
       </div>
 
       <div class="conversation-list-content">
-        <div
-          v-for="conv in filteredConversations"
-          :key="conv.id"
-          class="conversation-item"
-          :class="{ active: chatStore.currentConversationId === conv.id }"
-          @click="selectConversation(conv.id)"
-        >
-          <div class="conversation-item-avatar">
-            <el-avatar
-              :src="conv.group?.avatar || conv.targetUser?.avatar"
-              :size="45"
-              shape="square"
-            >
-              {{ (conv.group?.name || conv.targetUser?.nickname || '?').charAt(0) }}
-            </el-avatar>
-          </div>
-
-          <div class="conversation-item-content">
-            <div class="conversation-item-header">
-              <span class="name ellipsis">
-                {{ conv.group?.name || conv.targetUser?.nickname || 'Unknown' }}
-              </span>
-              <span class="time">{{ formatTime(conv.lastMsgTime) }}</span>
+        <!-- Messages Tab - Conversation List -->
+        <template v-if="activeTab === 'messages'">
+          <div
+            v-for="conv in filteredConversations"
+            :key="conv.id"
+            class="conversation-item"
+            :class="{
+              active: chatStore.currentConversationId === conv.id,
+              pinned: conv.isPinned,
+              muted: conv.isMuted
+            }"
+            @click="selectConversation(conv.id)"
+            @contextmenu="(e) => handleConversationContextMenu(e, conv)"
+          >
+            <div class="conversation-item-avatar">
+              <el-avatar
+                :src="conv.group?.avatar || conv.targetUser?.avatar"
+                :size="45"
+                shape="square"
+              >
+                {{ (conv.group?.name || conv.targetUser?.nickname || '?').charAt(0) }}
+              </el-avatar>
             </div>
 
-            <div class="conversation-item-message">
-              <span v-if="conv.atMsgIds?.length" class="at-badge">[Someone @'d you]</span>
-              <span class="text ellipsis">{{ getLastMessagePreview(conv) }}</span>
-              <span v-if="conv.unreadCount > 0" class="badge">
-                {{ conv.unreadCount > 99 ? '99+' : conv.unreadCount }}
-              </span>
+            <div class="conversation-item-content">
+              <div class="conversation-item-header">
+                <span class="name ellipsis">
+                  <el-icon v-if="conv.isPinned" class="pin-icon"><Top /></el-icon>
+                  {{ conv.group?.name || conv.targetUser?.nickname || 'Unknown' }}
+                </span>
+                <span class="time">{{ formatTime(conv.lastMsgTime) }}</span>
+              </div>
+
+              <div class="conversation-item-message">
+                <span v-if="conv.atMsgIds?.length" class="at-badge">[Someone @'d you]</span>
+                <span class="text ellipsis">{{ getLastMessagePreview(conv) }}</span>
+                <el-icon v-if="conv.isMuted" class="mute-icon"><BellFilled /></el-icon>
+                <span v-if="conv.unreadCount > 0" class="badge" :class="{ muted: conv.isMuted }">
+                  {{ conv.unreadCount > 99 ? '99+' : conv.unreadCount }}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div v-if="filteredConversations.length === 0" class="flex-center" style="height: 200px; color: #909399">
-          <span v-if="searchQuery">No results found</span>
-          <span v-else>No conversations yet</span>
-        </div>
+          <div v-if="filteredConversations.length === 0" class="flex-center" style="height: 200px; color: #909399">
+            <span v-if="searchQuery">No results found</span>
+            <span v-else>No conversations yet</span>
+          </div>
+        </template>
+
+        <!-- Contacts Tab - Friends List -->
+        <FriendsList
+          v-else-if="activeTab === 'contacts'"
+          ref="friendsListRef"
+          @open-conversation="handleOpenConversation"
+        />
+
+        <!-- Groups Tab - Groups List -->
+        <GroupsList
+          v-else-if="activeTab === 'groups'"
+          ref="groupsListRef"
+          :current-user-id="userStore.user?.id ?? 0"
+          @open-conversation="handleOpenConversation"
+        />
       </div>
     </div>
 
@@ -315,6 +398,20 @@ function getLastMessagePreview(conv: any) {
     <CreateGroupDialog
       v-model="showCreateGroupDialog"
       @group-created="handleGroupCreated"
+    />
+
+    <!-- Conversation Context Menu -->
+    <ConversationContextMenu
+      v-model:visible="contextMenuVisible"
+      :x="contextMenuX"
+      :y="contextMenuY"
+      :conversation="contextMenuConversation"
+      @pin="handleContextMenuPin"
+      @unpin="handleContextMenuPin"
+      @mute="handleContextMenuMute"
+      @unmute="handleContextMenuMute"
+      @mark-read="handleContextMenuMarkRead"
+      @delete="handleContextMenuDelete"
     />
   </div>
 </template>
