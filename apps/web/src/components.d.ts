@@ -7,6 +7,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AboutDialog: typeof import('./components/settings/AboutDialog.vue')['default']
     AddFriendDialog: typeof import('./components/contact/AddFriendDialog.vue')['default']
     ChangePasswordDialog: typeof import('./components/settings/ChangePasswordDialog.vue')['default']
     ConversationContextMenu: typeof import('./components/chat/ConversationContextMenu.vue')['default']
