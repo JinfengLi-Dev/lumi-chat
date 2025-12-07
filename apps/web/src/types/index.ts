@@ -165,10 +165,18 @@ export interface MessageMetadata {
   // User card
   cardUserId?: number
   cardUser?: User
+  userId?: number
+  uid?: string
+  nickname?: string
+  avatar?: string
 
   // Group card
   cardGroupId?: number
   cardGroup?: Group
+  groupId?: number
+  gid?: string
+  name?: string
+  memberCount?: number
 }
 
 // WebSocket message types

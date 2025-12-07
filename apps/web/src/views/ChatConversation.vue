@@ -6,9 +6,19 @@ import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import { fileApi } from '@/api'
 import type { UploadProgress } from '@/api/file'
-import type { Message } from '@/types'
+import type { Message, User, Group } from '@/types'
 import MessageContextMenu from '@/components/chat/MessageContextMenu.vue'
 import ForwardMessageDialog from '@/components/chat/ForwardMessageDialog.vue'
+import EmojiPicker from '@/components/chat/EmojiPicker.vue'
+import ImageLightbox from '@/components/chat/ImageLightbox.vue'
+import LocationMessage from '@/components/chat/LocationMessage.vue'
+import LocationPicker from '@/components/chat/LocationPicker.vue'
+import UserCardMessage from '@/components/chat/UserCardMessage.vue'
+import UserCardPicker from '@/components/chat/UserCardPicker.vue'
+import GroupCardMessage from '@/components/chat/GroupCardMessage.vue'
+import GroupCardPicker from '@/components/chat/GroupCardPicker.vue'
+import TypingIndicator from '@/components/chat/TypingIndicator.vue'
+import MessageStatus from '@/components/chat/MessageStatus.vue'
 
 const route = useRoute()
 const chatStore = useChatStore()
@@ -35,6 +45,28 @@ const messageToForward = ref<Message | null>(null)
 
 // Quote state
 const quotedMessage = ref<Message | null>(null)
+
+// Emoji picker state
+const showEmojiPicker = ref(false)
+
+// Image lightbox state
+const lightboxVisible = ref(false)
+const lightboxImages = ref<string[]>([])
+const lightboxIndex = ref(0)
+
+// Location picker state
+const showLocationPicker = ref(false)
+
+// User card picker state
+const showUserCardPicker = ref(false)
+const availableFriends = ref<User[]>([])
+
+// Group card picker state
+const showGroupCardPicker = ref(false)
+const availableGroups = ref<Group[]>([])
+
+// Typing indicator (mock for now - would be WebSocket driven)
+const typingUsers = ref<User[]>([])
 
 const conversationId = computed(() => Number(route.params.id))
 const conversation = computed(() => chatStore.currentConversation)
@@ -261,6 +293,87 @@ async function uploadAndSendFile(file: File, type: 'image' | 'file') {
   }
 }
 
+// Emoji picker handler
+function handleEmojiSelect(emoji: string) {
+  messageInput.value += emoji
+  showEmojiPicker.value = false
+}
+
+// Image lightbox handler
+function openLightbox(imageUrl: string) {
+  // Collect all image URLs from messages
+  lightboxImages.value = messages.value
+    .filter((m) => m.msgType === 'image' && !m.recalledAt)
+    .map((m) => m.content)
+
+  lightboxIndex.value = lightboxImages.value.indexOf(imageUrl)
+  if (lightboxIndex.value === -1) {
+    lightboxImages.value = [imageUrl]
+    lightboxIndex.value = 0
+  }
+  lightboxVisible.value = true
+}
+
+// Location picker handler
+async function handleLocationSelect(location: { latitude: number; longitude: number; address: string }) {
+  showLocationPicker.value = false
+  try {
+    await chatStore.sendMessage(conversationId.value, 'location', location.address, {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      address: location.address,
+    })
+    await nextTick()
+    scrollToBottom()
+  } catch {
+    ElMessage.error('Failed to send location')
+  }
+}
+
+// User card picker handler
+async function handleUserCardSelect(user: User) {
+  showUserCardPicker.value = false
+  try {
+    await chatStore.sendMessage(conversationId.value, 'user_card', user.uid, {
+      userId: user.id,
+      uid: user.uid,
+      nickname: user.nickname,
+      avatar: user.avatar,
+    })
+    await nextTick()
+    scrollToBottom()
+  } catch {
+    ElMessage.error('Failed to send contact card')
+  }
+}
+
+// Group card picker handler
+async function handleGroupCardSelect(group: Group) {
+  showGroupCardPicker.value = false
+  try {
+    await chatStore.sendMessage(conversationId.value, 'group_card', group.gid || String(group.id), {
+      groupId: group.id,
+      gid: group.gid,
+      name: group.name,
+      avatar: group.avatar,
+      memberCount: group.memberCount,
+    })
+    await nextTick()
+    scrollToBottom()
+  } catch {
+    ElMessage.error('Failed to send group card')
+  }
+}
+
+// Message status helper
+function getMessageStatus(msg: Message): 'sending' | 'sent' | 'delivered' | 'read' | 'failed' {
+  if (msg.recalledAt) return 'sent'
+  // In a real app, these would come from the message object
+  // For now, we assume all sent messages are delivered
+  if (msg.id) return 'delivered'
+  return 'sending'
+}
+
 onMounted(() => {
   scrollToBottom()
 })
@@ -326,12 +439,11 @@ onMounted(() => {
           </div>
 
           <!-- Image message -->
-          <div v-else-if="msg.msgType === 'image'" class="content">
-            <el-image
+          <div v-else-if="msg.msgType === 'image'" class="content image-content">
+            <img
               :src="msg.metadata?.thumbnailUrl || msg.content"
-              fit="cover"
-              style="max-width: 200px; max-height: 200px; border-radius: 4px"
-              :preview-src-list="[msg.content]"
+              style="max-width: 200px; max-height: 200px; border-radius: 4px; cursor: pointer"
+              @click="openLightbox(msg.content)"
             />
           </div>
 
@@ -350,10 +462,50 @@ onMounted(() => {
 
           <!-- Location message -->
           <div v-else-if="msg.msgType === 'location'" class="content">
-            <div style="display: flex; align-items: center; gap: 10px">
-              <el-icon :size="24"><Location /></el-icon>
-              <span>{{ msg.metadata?.address || 'Location' }}</span>
-            </div>
+            <LocationMessage
+              :latitude="msg.metadata?.latitude || 0"
+              :longitude="msg.metadata?.longitude || 0"
+              :address="msg.metadata?.address || 'Unknown location'"
+            />
+          </div>
+
+          <!-- User card message -->
+          <div v-else-if="msg.msgType === 'user_card'" class="content card-content">
+            <UserCardMessage
+              :user="{
+                id: msg.metadata?.userId || 0,
+                uid: msg.metadata?.uid || '',
+                nickname: msg.metadata?.nickname || 'Unknown',
+                avatar: msg.metadata?.avatar,
+                email: '',
+                gender: 'male',
+                status: 'active',
+                createdAt: ''
+              }"
+              @view-profile="() => {}"
+              @send-message="() => {}"
+              @add-friend="() => {}"
+            />
+          </div>
+
+          <!-- Group card message -->
+          <div v-else-if="msg.msgType === 'group_card'" class="content card-content">
+            <GroupCardMessage
+              :group="{
+                id: msg.metadata?.groupId || 0,
+                gid: msg.metadata?.gid || '',
+                name: msg.metadata?.name || 'Unknown Group',
+                avatar: msg.metadata?.avatar,
+                ownerId: 0,
+                creatorId: 0,
+                maxMembers: 200,
+                memberCount: msg.metadata?.memberCount || 0,
+                createdAt: ''
+              }"
+              @view-group="() => {}"
+              @open-chat="() => {}"
+              @join-group="() => {}"
+            />
           </div>
 
           <!-- Other message types -->
@@ -361,8 +513,20 @@ onMounted(() => {
             [{{ msg.msgType }}]
           </div>
 
-          <div class="time">{{ formatTime(msg.serverCreatedAt) }}</div>
+          <div class="message-footer">
+            <span class="time">{{ formatTime(msg.serverCreatedAt) }}</span>
+            <MessageStatus
+              v-if="isSelf(msg.senderId)"
+              :status="getMessageStatus(msg)"
+              class="message-status"
+            />
+          </div>
         </div>
+      </div>
+
+      <!-- Typing Indicator -->
+      <div v-if="typingUsers.length > 0" class="typing-indicator-wrapper">
+        <TypingIndicator :typing-users="typingUsers" />
       </div>
     </div>
 
@@ -384,6 +548,9 @@ onMounted(() => {
       />
 
       <div class="toolbar">
+        <el-tooltip content="Emoji" placement="top">
+          <el-icon class="tool-btn" @click="showEmojiPicker = !showEmojiPicker"><Sunny /></el-icon>
+        </el-tooltip>
         <el-tooltip content="Send Image" placement="top">
           <el-icon class="tool-btn" @click="triggerImageUpload"><PictureFilled /></el-icon>
         </el-tooltip>
@@ -393,16 +560,25 @@ onMounted(() => {
         <el-tooltip content="Video (Coming Soon)" placement="top">
           <el-icon class="tool-btn disabled"><VideoCamera /></el-icon>
         </el-tooltip>
-        <el-tooltip content="Location (Coming Soon)" placement="top">
-          <el-icon class="tool-btn disabled"><Location /></el-icon>
+        <el-tooltip content="Send Location" placement="top">
+          <el-icon class="tool-btn" @click="showLocationPicker = true"><Location /></el-icon>
         </el-tooltip>
-        <el-tooltip content="Contact Card (Coming Soon)" placement="top">
-          <el-icon class="tool-btn disabled"><User /></el-icon>
+        <el-tooltip content="Send Contact Card" placement="top">
+          <el-icon class="tool-btn" @click="showUserCardPicker = true"><User /></el-icon>
         </el-tooltip>
-        <el-tooltip content="Group Card (Coming Soon)" placement="top">
-          <el-icon class="tool-btn disabled"><Postcard /></el-icon>
+        <el-tooltip content="Send Group Card" placement="top">
+          <el-icon class="tool-btn" @click="showGroupCardPicker = true"><Postcard /></el-icon>
         </el-tooltip>
       </div>
+
+      <!-- Emoji Picker -->
+      <EmojiPicker
+        v-if="showEmojiPicker"
+        :visible="showEmojiPicker"
+        @select="handleEmojiSelect"
+        @close="showEmojiPicker = false"
+        class="emoji-picker-popup"
+      />
 
       <!-- Upload Progress -->
       <div v-if="isUploading && uploadProgress" class="upload-progress">
@@ -507,5 +683,34 @@ onMounted(() => {
     v-model="showForwardDialog"
     :message="messageToForward"
     @forward="handleForwardConfirm"
+  />
+
+  <!-- Image Lightbox -->
+  <ImageLightbox
+    v-model:visible="lightboxVisible"
+    :images="lightboxImages"
+    :initial-index="lightboxIndex"
+  />
+
+  <!-- Location Picker -->
+  <LocationPicker
+    v-model:visible="showLocationPicker"
+    @select="handleLocationSelect"
+  />
+
+  <!-- User Card Picker -->
+  <UserCardPicker
+    :visible="showUserCardPicker"
+    :friends="availableFriends"
+    @update:visible="showUserCardPicker = $event"
+    @select="handleUserCardSelect"
+  />
+
+  <!-- Group Card Picker -->
+  <GroupCardPicker
+    :visible="showGroupCardPicker"
+    :groups="availableGroups"
+    @update:visible="showGroupCardPicker = $event"
+    @select="handleGroupCardSelect"
   />
 </template>
