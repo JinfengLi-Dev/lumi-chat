@@ -2,7 +2,7 @@ import { apiClient } from './client'
 import type { Friend, FriendRequest, ApiResponse } from '@/types'
 
 export interface SendFriendRequestParams {
-  targetUserId: number
+  uid: string
   message?: string
 }
 

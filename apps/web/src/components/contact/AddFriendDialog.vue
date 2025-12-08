@@ -58,7 +58,7 @@ async function sendFriendRequest() {
   isSending.value = true
   try {
     await friendApi.sendFriendRequest({
-      targetUserId: selectedUser.value.id,
+      uid: selectedUser.value.uid,
       message: requestMessage.value || undefined,
     })
     ElMessage.success('Friend request sent')

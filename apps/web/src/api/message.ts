@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { Message, MessageType, MessageMetadata, ApiResponse, PagedResponse } from '@/types'
+import type { Message, MessageType, MessageMetadata, ApiResponse } from '@/types'
 
 export interface SendMessageRequest {
   conversationId: number
@@ -11,11 +11,16 @@ export interface SendMessageRequest {
 }
 
 export const messageApi = {
-  async getMessages(conversationId: number, beforeMsgId?: number, limit = 50): Promise<PagedResponse<Message>> {
-    const response = await apiClient.get<ApiResponse<PagedResponse<Message>>>(
+  /**
+   * Get messages for a conversation
+   * Backend returns List<MessageResponse>, not PagedResponse
+   * @param before - The ID of the message to load before (for pagination)
+   */
+  async getMessages(conversationId: number, before?: number, limit = 50): Promise<Message[]> {
+    const response = await apiClient.get<ApiResponse<Message[]>>(
       `/conversations/${conversationId}/messages`,
       {
-        params: { beforeMsgId, limit },
+        params: { before, limit },
       }
     )
     return response.data.data
@@ -27,11 +32,11 @@ export const messageApi = {
   },
 
   async recallMessage(msgId: string): Promise<void> {
-    await apiClient.post(`/messages/${msgId}/recall`)
+    await apiClient.put(`/messages/${msgId}/recall`)
   },
 
-  async forwardMessage(msgId: string, targetConversationIds: number[]): Promise<void> {
-    await apiClient.post(`/messages/${msgId}/forward`, { targetConversationIds })
+  async forwardMessage(msgId: string, targetConversationId: number): Promise<void> {
+    await apiClient.post(`/messages/${msgId}/forward`, { targetConversationId })
   },
 
   async deleteMessage(msgId: string): Promise<void> {

@@ -12,9 +12,9 @@ export const conversationApi = {
     return response.data.data
   },
 
-  async createPrivateConversation(userId: number): Promise<Conversation> {
+  async createPrivateConversation(targetUserId: number): Promise<Conversation> {
     const response = await apiClient.post<ApiResponse<Conversation>>('/conversations/private', {
-      userId,
+      targetUserId,
     })
     return response.data.data
   },

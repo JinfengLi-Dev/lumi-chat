@@ -19,7 +19,8 @@ export const ProtocolType = {
   CHAT_MESSAGE_ACK: 110,
   RECEIVE_MESSAGE: 111,
   TYPING_NOTIFY: 112,
-  RECALL_NOTIFY: 113,
+  RECALL_ACK: 113,
+  RECALL_NOTIFY: 114,
   SYNC_RESPONSE: 120,
 
   // System Messages
@@ -48,7 +49,7 @@ export interface ChatMessageData {
   metadata?: MessageMetadata
   quoteMsgId?: string
   atUserIds?: number[]
-  clientCreatedAt: number
+  clientTimestamp: number
 }
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting'

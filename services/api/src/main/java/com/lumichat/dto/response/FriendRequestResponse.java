@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 public class FriendRequestResponse {
     private Long id;
     private UserResponse fromUser;
+    private UserResponse toUser;
     private String message;
     private String status;
     private LocalDateTime createdAt;
@@ -20,6 +21,7 @@ public class FriendRequestResponse {
         return FriendRequestResponse.builder()
                 .id(request.getId())
                 .fromUser(UserResponse.from(request.getFromUser()))
+                .toUser(UserResponse.from(request.getToUser()))
                 .message(request.getMessage())
                 .status(request.getStatus().name())
                 .createdAt(request.getCreatedAt())

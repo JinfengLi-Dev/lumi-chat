@@ -45,7 +45,7 @@ export interface RegisterRequest {
   email: string
   password: string
   nickname: string
-  gender: 'male' | 'female'
+  gender: 'male' | 'female' | 'unknown'
 }
 
 // Friend types
@@ -91,7 +91,8 @@ export interface GroupMember {
 }
 
 // Conversation types
-export type ConversationType = 'private' | 'group' | 'system' | 'stranger'
+// Note: Backend uses 'private_chat' for private conversations
+export type ConversationType = 'private_chat' | 'group' | 'system' | 'stranger'
 
 export interface Conversation {
   id: number
