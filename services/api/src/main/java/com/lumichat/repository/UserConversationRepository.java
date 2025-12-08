@@ -54,4 +54,9 @@ public interface UserConversationRepository extends JpaRepository<UserConversati
     @Query("UPDATE UserConversation uc SET uc.unreadCount = uc.unreadCount + 1 " +
            "WHERE uc.conversation.id = :conversationId AND uc.user.id != :senderId")
     void incrementUnreadForOthers(@Param("conversationId") Long conversationId, @Param("senderId") Long senderId);
+
+    @Modifying
+    @Query("UPDATE UserConversation uc SET uc.clearedAt = CURRENT_TIMESTAMP, uc.unreadCount = 0 " +
+           "WHERE uc.user.id = :userId AND uc.conversation.id = :conversationId")
+    void clearMessages(@Param("userId") Long userId, @Param("conversationId") Long conversationId);
 }

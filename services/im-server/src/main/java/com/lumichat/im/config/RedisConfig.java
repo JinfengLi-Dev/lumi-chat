@@ -75,12 +75,15 @@ public class RedisConfig {
                             continue;
                         }
 
-                        Packet packet = Packet.of(ProtocolType.RECEIVE_MESSAGE, Map.of(
-                                "conversationId", conversationId,
-                                "senderId", senderId,
-                                "msgId", msgId,
-                                "message", messageData
-                        ));
+                        // Send Message directly (not wrapped in outer object)
+                        // Frontend expects: { id, msgId, conversationId, senderId, msgType, content, ... }
+                        Map<String, Object> messagePayload = new java.util.HashMap<>(messageData);
+                        messagePayload.put("msgId", msgId);
+                        messagePayload.put("conversationId", conversationId);
+                        messagePayload.put("senderId", senderId);
+                        messagePayload.put("senderDeviceId", senderDeviceId);
+
+                        Packet packet = Packet.of(ProtocolType.RECEIVE_MESSAGE, messagePayload);
                         messageProcessor.sendToUserDevice(participantId, session.getDeviceId(), packet);
                     }
                 }

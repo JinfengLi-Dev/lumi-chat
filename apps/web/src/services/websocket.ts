@@ -305,8 +305,9 @@ class WebSocketService {
     this.handlers.onMessage?.(data)
   }
 
-  private handleMessageAck(data: { msgId: string; serverTimestamp: number; success: boolean }): void {
-    this.handlers.onMessageAck?.(data.msgId, data.serverTimestamp, data.success)
+  private handleMessageAck(data: { clientMsgId: string; msgId: string; serverTimestamp: number; success: boolean }): void {
+    // Use clientMsgId (original client-generated ID) to match with sent messages
+    this.handlers.onMessageAck?.(data.clientMsgId, data.serverTimestamp, data.success)
   }
 
   private handleTypingNotify(data: { conversationId: number; userId: number }): void {

@@ -133,6 +133,22 @@ public class AuthService {
                 });
     }
 
+    @Transactional
+    public void resetPassword(String token, String newPassword) {
+        // Validate the reset token (it should be a JWT token with password-reset type)
+        if (!jwtTokenProvider.validateToken(token)) {
+            throw new UnauthorizedException("Invalid or expired reset token");
+        }
+
+        Long userId = jwtTokenProvider.getUserIdFromToken(token);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UnauthorizedException("User not found"));
+
+        // Update password
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
+
     private void registerDevice(User user, LoginRequest request, String ipAddress) {
         UserDevice.DeviceType deviceType;
         try {

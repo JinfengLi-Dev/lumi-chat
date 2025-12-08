@@ -52,6 +52,9 @@ public class UserConversation {
 
     private Long lastReadMsgId;
 
+    // Timestamp when user cleared messages; only show messages after this time
+    private LocalDateTime clearedAt;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

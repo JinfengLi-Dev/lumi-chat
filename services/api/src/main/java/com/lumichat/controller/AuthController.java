@@ -52,7 +52,14 @@ public class AuthController {
 
     @PostMapping("/forgot-password")
     public ApiResponse<Void> forgotPassword(@RequestBody ForgotPasswordRequest request) {
-        // TODO: Implement password reset email
+        // TODO: Implement password reset email sending
+        // For now, just return success
+        return ApiResponse.success();
+    }
+
+    @PostMapping("/reset-password")
+    public ApiResponse<Void> resetPassword(@RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request.token(), request.newPassword());
         return ApiResponse.success();
     }
 
@@ -71,4 +78,5 @@ public class AuthController {
     // Inner classes for simple request bodies
     public record RefreshTokenRequest(String refreshToken) {}
     public record ForgotPasswordRequest(String email) {}
+    public record ResetPasswordRequest(String token, String newPassword) {}
 }

@@ -118,6 +118,18 @@ public class ConversationController {
         return ApiResponse.success();
     }
 
+    /**
+     * Clear messages in a conversation
+     * DELETE /conversations/{id}/messages
+     */
+    @DeleteMapping("/{id}/messages")
+    public ApiResponse<Void> clearMessages(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long id) {
+        conversationService.clearMessages(principal.getId(), id);
+        return ApiResponse.success();
+    }
+
     // Inner classes for simple request bodies
     public record CreatePrivateConversationRequest(Long targetUserId) {}
     public record MuteRequest(boolean muted) {}

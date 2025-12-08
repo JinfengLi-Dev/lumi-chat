@@ -115,6 +115,15 @@ public class ConversationService {
     }
 
     /**
+     * Clear messages in a conversation for a user
+     */
+    @Transactional
+    public void clearMessages(Long userId, Long conversationId) {
+        userConversationRepository.clearMessages(userId, conversationId);
+        log.info("User {} cleared messages in conversation {}", userId, conversationId);
+    }
+
+    /**
      * Create or get private conversation between two users
      */
     @Transactional

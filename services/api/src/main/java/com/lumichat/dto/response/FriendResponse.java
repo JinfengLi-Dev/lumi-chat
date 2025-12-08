@@ -17,7 +17,7 @@ public class FriendResponse {
     private String signature;
     private String gender;
     private String status;
-    private LocalDateTime createdAt;
+    private LocalDateTime friendshipCreatedAt;
 
     public static FriendResponse from(Friendship friendship) {
         var friend = friendship.getFriend();
@@ -30,7 +30,7 @@ public class FriendResponse {
                 .signature(friend.getSignature())
                 .gender(friend.getGender() != null ? friend.getGender().name() : null)
                 .status(friendship.getStatus())
-                .createdAt(friendship.getCreatedAt())
+                .friendshipCreatedAt(friendship.getCreatedAt())
                 .build();
     }
 }
