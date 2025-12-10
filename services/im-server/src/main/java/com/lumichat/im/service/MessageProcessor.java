@@ -182,7 +182,15 @@ public class MessageProcessor {
             Long conversationId = ((Number) data.get("conversationId")).longValue();
             Long lastReadMsgId = ((Number) data.get("lastReadMsgId")).longValue();
 
-            // Publish read status to Redis for sync to other devices
+            // Persist read status via API and get info about who to notify
+            ApiClient.ReadStatusResult readResult = apiClient.updateReadStatus(
+                    session.getUserId(), conversationId, lastReadMsgId);
+
+            if (!readResult.success()) {
+                log.warn("Failed to persist read status: {}", readResult.error());
+            }
+
+            // Publish read status to Redis for sync to user's other devices
             String readJson = objectMapper.writeValueAsString(Map.of(
                     "type", "read_status",
                     "userId", session.getUserId(),
@@ -191,6 +199,17 @@ public class MessageProcessor {
                     "lastReadMsgId", lastReadMsgId
             ));
             redisTemplate.convertAndSend("im:read_status", readJson);
+
+            // For private chats, notify the other user (message sender) that their messages were read
+            if (readResult.notifyUserId() != null) {
+                Packet readReceiptPacket = Packet.of(ProtocolType.READ_RECEIPT_NOTIFY, Map.of(
+                        "conversationId", conversationId,
+                        "readerId", session.getUserId(),
+                        "lastReadMsgId", lastReadMsgId
+                ));
+                sendToUser(readResult.notifyUserId(), readReceiptPacket);
+                log.debug("Read receipt sent to user {} for conversation {}", readResult.notifyUserId(), conversationId);
+            }
         } catch (Exception e) {
             log.error("Failed to process read ack", e);
         }

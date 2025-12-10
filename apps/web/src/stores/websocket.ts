@@ -117,6 +117,11 @@ export const useWebSocketStore = defineStore('websocket', {
           friendStore.handleOnlineStatusChange(userId, isOnline)
         },
 
+        onReadReceiptNotify: (conversationId, readerId, lastReadMsgId) => {
+          const chatStore = useChatStore()
+          chatStore.handleReadReceiptNotify(conversationId, readerId, lastReadMsgId)
+        },
+
         onKickedOffline: (reason) => {
           this.status = 'disconnected'
           this.kickedOfflineReason = reason

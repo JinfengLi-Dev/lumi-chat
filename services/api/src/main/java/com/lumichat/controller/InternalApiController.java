@@ -13,8 +13,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import com.lumichat.entity.Conversation.ConversationType;
+import com.lumichat.service.ConversationService;
+
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Internal API endpoints for service-to-service communication.
@@ -27,6 +32,7 @@ import java.util.List;
 public class InternalApiController {
 
     private final MessageService messageService;
+    private final ConversationService conversationService;
     private final ConversationRepository conversationRepository;
 
     /**
@@ -126,5 +132,68 @@ public class InternalApiController {
         );
 
         return ApiResponse.success(messages);
+    }
+
+    /**
+     * Update read status for a conversation from the IM server.
+     * Returns info needed to notify message senders (for private chats).
+     * POST /internal/conversations/{conversationId}/read
+     */
+    @PostMapping("/conversations/{conversationId}/read")
+    public ApiResponse<Map<String, Object>> updateReadStatus(
+            @AuthenticationPrincipal InternalServicePrincipal principal,
+            @PathVariable Long conversationId,
+            @RequestBody Map<String, Object> request) {
+
+        if (principal == null || principal.userId() == null) {
+            return ApiResponse.error(400, "User ID is required");
+        }
+
+        Long lastReadMsgId = request.get("lastReadMsgId") != null
+                ? ((Number) request.get("lastReadMsgId")).longValue()
+                : null;
+
+        if (lastReadMsgId == null) {
+            return ApiResponse.error(400, "lastReadMsgId is required");
+        }
+
+        log.info("Internal read status update from {} for user {}, conversation={}, lastReadMsgId={}",
+                principal.serviceName(), principal.userId(), conversationId, lastReadMsgId);
+
+        // Mark conversation as read in the user_conversations table
+        conversationService.markAsRead(principal.userId(), conversationId);
+
+        // Get conversation info to determine if we should broadcast
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElse(null);
+
+        if (conversation == null) {
+            return ApiResponse.error(404, "Conversation not found");
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("conversationId", conversationId);
+        result.put("lastReadMsgId", lastReadMsgId);
+        result.put("readerId", principal.userId());
+
+        // For private chats, include the other participant to notify
+        if (conversation.getType() == ConversationType.private_chat) {
+            List<Long> participants = conversation.getParticipantIds() != null
+                    ? Arrays.asList(conversation.getParticipantIds())
+                    : List.of();
+
+            // Find the other participant (message sender) to notify
+            Long otherUserId = participants.stream()
+                    .filter(id -> !id.equals(principal.userId()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (otherUserId != null) {
+                result.put("notifyUserId", otherUserId);
+            }
+        }
+
+        return ApiResponse.success(result);
     }
 }

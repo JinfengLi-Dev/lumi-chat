@@ -302,4 +302,60 @@ public class ApiClient {
             boolean success,
             String error
     ) {}
+
+    /**
+     * Update read status for a conversation.
+     * Returns info about who to notify (for private chats, the message sender).
+     */
+    public ReadStatusResult updateReadStatus(Long userId, Long conversationId, Long lastReadMsgId) {
+        try {
+            String url = apiBaseUrl + "/internal/conversations/" + conversationId + "/read";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("X-Internal-Service", "im-server");
+            headers.set("X-User-Id", userId.toString());
+
+            Map<String, Object> body = new java.util.HashMap<>();
+            body.put("lastReadMsgId", lastReadMsgId);
+
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url, HttpMethod.POST, entity, String.class);
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                JsonNode root = objectMapper.readTree(response.getBody());
+                JsonNode data = root.path("data");
+
+                Long notifyUserId = data.has("notifyUserId") && !data.path("notifyUserId").isNull()
+                        ? data.path("notifyUserId").asLong()
+                        : null;
+
+                return new ReadStatusResult(
+                        true,
+                        conversationId,
+                        lastReadMsgId,
+                        userId,
+                        notifyUserId,
+                        null
+                );
+            } else {
+                log.error("Failed to update read status: {}", response.getBody());
+                return new ReadStatusResult(false, conversationId, lastReadMsgId, userId, null, "API error");
+            }
+        } catch (Exception e) {
+            log.error("Error updating read status for user {} conversation {}", userId, conversationId, e);
+            return new ReadStatusResult(false, conversationId, lastReadMsgId, userId, null, e.getMessage());
+        }
+    }
+
+    public record ReadStatusResult(
+            boolean success,
+            Long conversationId,
+            Long lastReadMsgId,
+            Long readerId,
+            Long notifyUserId,  // The user to notify (in private chats, the message sender)
+            String error
+    ) {}
 }

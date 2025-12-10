@@ -18,6 +18,7 @@ interface ChatState {
   loadingMessages: boolean
   hasMoreMessages: Map<number, boolean>
   typingUsers: Map<number, Map<number, TypingUser>> // conversationId -> userId -> TypingUser
+  lastReadByOther: Map<number, number> // conversationId -> lastReadMsgId (by the other user in private chats)
 }
 
 // Typing indicator timeout in milliseconds
@@ -32,6 +33,7 @@ export const useChatStore = defineStore('chat', {
     loadingMessages: false,
     hasMoreMessages: new Map(),
     typingUsers: new Map(),
+    lastReadByOther: new Map(),
   }),
 
   getters: {
@@ -84,6 +86,21 @@ export const useChatStore = defineStore('chat', {
           nickname: t.nickname,
           avatar: t.avatar,
         }))
+      },
+
+    // Check if a message has been read by the other user (for private chats)
+    isMessageReadByOther:
+      (state) =>
+      (conversationId: number, messageId: number): boolean => {
+        const lastReadMsgId = state.lastReadByOther.get(conversationId)
+        return lastReadMsgId !== undefined && messageId <= lastReadMsgId
+      },
+
+    // Get the last read message ID by the other user for a conversation
+    getLastReadByOther:
+      (state) =>
+      (conversationId: number): number | undefined => {
+        return state.lastReadByOther.get(conversationId)
       },
   },
 
@@ -267,6 +284,15 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    // Handle read receipt notification from the other user in a private chat
+    handleReadReceiptNotify(conversationId: number, _readerId: number, lastReadMsgId: number) {
+      // Update the last read message ID for this conversation
+      const currentLastRead = this.lastReadByOther.get(conversationId) || 0
+      if (lastReadMsgId > currentLastRead) {
+        this.lastReadByOther.set(conversationId, lastReadMsgId)
+      }
+    },
+
     handleTypingIndicator(conversationId: number, userId: number) {
       // Get or create the typing users map for this conversation
       if (!this.typingUsers.has(conversationId)) {
@@ -353,6 +379,7 @@ export const useChatStore = defineStore('chat', {
       this.messages.clear()
       this.hasMoreMessages.clear()
       this.typingUsers.clear()
+      this.lastReadByOther.clear()
     },
   },
 })

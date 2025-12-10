@@ -30,6 +30,7 @@ export const ProtocolType = {
   OFFLINE_SYNC_COMPLETE: 122,
   ONLINE_STATUS_RESPONSE: 123,
   ONLINE_STATUS_CHANGE: 124,
+  READ_RECEIPT_NOTIFY: 125,
 
   // System Messages
   KICKED_OFFLINE: 200,
@@ -73,6 +74,7 @@ export interface WebSocketEventHandlers {
   onReadSync?: (conversationId: number, lastReadMsgId: number) => void
   onOnlineStatusChange?: (userId: number, isOnline: boolean) => void
   onOnlineStatusResponse?: (statuses: Record<number, boolean>) => void
+  onReadReceiptNotify?: (conversationId: number, readerId: number, lastReadMsgId: number) => void
   onKickedOffline?: (reason: string) => void
   onError?: (error: string) => void
 }
@@ -307,6 +309,10 @@ class WebSocketService {
           this.handleOnlineStatusChange(packet.data as { userId: number; isOnline: boolean })
           break
 
+        case ProtocolType.READ_RECEIPT_NOTIFY:
+          this.handleReadReceiptNotify(packet.data as { conversationId: number; readerId: number; lastReadMsgId: number })
+          break
+
         case ProtocolType.SERVER_ERROR:
           this.handlers.onError?.((packet.data as { error: string }).error)
           break
@@ -350,6 +356,10 @@ class WebSocketService {
 
   private handleOnlineStatusChange(data: { userId: number; isOnline: boolean }): void {
     this.handlers.onOnlineStatusChange?.(data.userId, data.isOnline)
+  }
+
+  private handleReadReceiptNotify(data: { conversationId: number; readerId: number; lastReadMsgId: number }): void {
+    this.handlers.onReadReceiptNotify?.(data.conversationId, data.readerId, data.lastReadMsgId)
   }
 
   private generateSeq(): string {

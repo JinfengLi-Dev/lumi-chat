@@ -101,6 +101,19 @@ watch(conversationId, async (id) => {
   }
 }, { immediate: true })
 
+// Watch for new messages and send read receipt
+watch(
+  () => messages.value.length,
+  (newLen, oldLen) => {
+    if (newLen > (oldLen ?? 0) && conversationId.value) {
+      // New message arrived, send read receipt after a short delay
+      setTimeout(() => {
+        sendReadReceipt()
+      }, 500)
+    }
+  }
+)
+
 async function loadMessages() {
   if (!conversationId.value) return
   loading.value = true
@@ -108,6 +121,8 @@ async function loadMessages() {
     await chatStore.fetchMessages(conversationId.value)
     await nextTick()
     scrollToBottom()
+    // Send read receipt after messages are loaded
+    sendReadReceipt()
   } catch (error: any) {
     ElMessage.error('Failed to load messages')
   } finally {
@@ -394,10 +409,36 @@ async function handleGroupCardSelect(group: Group) {
 // Message status helper
 function getMessageStatus(msg: Message): 'sending' | 'sent' | 'delivered' | 'read' | 'failed' {
   if (msg.recalledAt) return 'sent'
-  // In a real app, these would come from the message object
-  // For now, we assume all sent messages are delivered
+  if (msg.status === 'failed') return 'failed'
+  if (msg.status === 'sending') return 'sending'
+
+  // Check if the message has been read by the other user (private chats only)
+  if (
+    msg.id &&
+    conversation.value?.type === 'private_chat' &&
+    chatStore.isMessageReadByOther(conversationId.value, msg.id)
+  ) {
+    return 'read'
+  }
+
+  // Default to delivered for persisted messages
   if (msg.id) return 'delivered'
   return 'sending'
+}
+
+// Auto-send read receipt when messages are viewed
+function sendReadReceipt() {
+  if (!conversationId.value || !wsStore.isConnected) return
+  if (!conversation.value || conversation.value.type === 'group') return
+
+  // Find the last message from the other user
+  const otherUserMessages = messages.value.filter((m) => !isSelf(m.senderId) && m.id)
+  if (otherUserMessages.length === 0) return
+
+  const lastMessage = otherUserMessages[otherUserMessages.length - 1]
+  if (!lastMessage?.id) return
+
+  wsStore.sendReadAck(conversationId.value, lastMessage.id)
 }
 
 onMounted(() => {
