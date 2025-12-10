@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
+import { useWebSocketStore } from '@/stores/websocket'
+import { useDebounceFn } from '@vueuse/core'
 import { fileApi } from '@/api'
 import type { UploadProgress } from '@/api/file'
 import type { Message, User, Group } from '@/types'
@@ -23,6 +25,7 @@ import MessageStatus from '@/components/chat/MessageStatus.vue'
 const route = useRoute()
 const chatStore = useChatStore()
 const userStore = useUserStore()
+const wsStore = useWebSocketStore()
 
 const messageInput = ref('')
 const messageListRef = ref<HTMLDivElement>()
@@ -65,8 +68,26 @@ const availableFriends = ref<User[]>([])
 const showGroupCardPicker = ref(false)
 const availableGroups = ref<Group[]>([])
 
-// Typing indicator (mock for now - would be WebSocket driven)
-const typingUsers = ref<User[]>([])
+// Typing indicator - connected to WebSocket store
+const typingUsers = computed(() =>
+  chatStore.currentTypingUsers.map((t) => ({
+    id: t.userId,
+    uid: '',
+    nickname: t.nickname,
+    avatar: t.avatar,
+    email: '',
+    gender: 'male' as const,
+    status: 'active' as const,
+    createdAt: '',
+  }))
+)
+
+// Debounced typing notification sender
+const sendTypingNotification = useDebounceFn(() => {
+  if (conversationId.value && wsStore.isConnected) {
+    wsStore.sendTyping(conversationId.value)
+  }
+}, 1000, { maxWait: 2000 })
 
 const conversationId = computed(() => Number(route.params.id))
 const conversation = computed(() => chatStore.currentConversation)
@@ -136,6 +157,11 @@ function handleKeydown(e: KeyboardEvent) {
   } else if (e.key === 'Enter' && e.ctrlKey) {
     messageInput.value += '\n'
   }
+}
+
+function handleInput() {
+  // Send typing notification when user types
+  sendTypingNotification()
 }
 
 function formatTime(time: string) {
@@ -377,6 +403,13 @@ function getMessageStatus(msg: Message): 'sending' | 'sent' | 'delivered' | 'rea
 onMounted(() => {
   scrollToBottom()
 })
+
+onUnmounted(() => {
+  // Clear typing indicators when leaving conversation
+  if (conversationId.value) {
+    chatStore.clearTypingUsers(conversationId.value)
+  }
+})
 </script>
 
 <template>
@@ -608,6 +641,7 @@ onMounted(() => {
           v-model="messageInput"
           placeholder="Type a message... (Enter to send, Ctrl+Enter for new line)"
           @keydown="handleKeydown"
+          @input="handleInput"
         />
       </div>
 
