@@ -272,6 +272,85 @@ public class MessageProcessor {
         }
     }
 
+    /**
+     * Handle offline sync request - fetch and deliver pending offline messages.
+     */
+    public void handleOfflineSyncRequest(ChannelHandlerContext ctx, Packet packet) {
+        UserSession session = sessionManager.getSessionByChannel(ctx.channel());
+        if (session == null) return;
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) packet.getData();
+            int limit = data != null && data.get("limit") != null
+                    ? ((Number) data.get("limit")).intValue()
+                    : 100;
+
+            // Fetch pending offline messages from API
+            List<Map<String, Object>> pendingMessages = apiClient.getPendingOfflineMessages(
+                    session.getUserId(), session.getDeviceId(), limit);
+
+            if (pendingMessages.isEmpty()) {
+                // No pending messages - send completion notification
+                sendResponse(ctx, ProtocolType.OFFLINE_SYNC_COMPLETE, packet.getSeq(),
+                        Map.of("success", true, "count", 0));
+                log.debug("No offline messages for user {} device {}",
+                        session.getUserId(), session.getDeviceId());
+                return;
+            }
+
+            // Send offline messages to client
+            sendResponse(ctx, ProtocolType.OFFLINE_SYNC_RESPONSE, packet.getSeq(),
+                    Map.of("success", true,
+                            "messages", pendingMessages,
+                            "count", pendingMessages.size()));
+
+            log.info("Delivered {} offline messages to user {} device {}",
+                    pendingMessages.size(), session.getUserId(), session.getDeviceId());
+        } catch (Exception e) {
+            log.error("Failed to process offline sync request", e);
+            sendResponse(ctx, ProtocolType.OFFLINE_SYNC_RESPONSE, packet.getSeq(),
+                    Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Handle offline sync acknowledgment - mark messages as delivered.
+     */
+    public void handleOfflineSyncAck(ChannelHandlerContext ctx, Packet packet) {
+        UserSession session = sessionManager.getSessionByChannel(ctx.channel());
+        if (session == null) return;
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) packet.getData();
+
+            @SuppressWarnings("unchecked")
+            List<Number> messageIdNumbers = (List<Number>) data.get("messageIds");
+            List<Long> messageIds = messageIdNumbers != null
+                    ? messageIdNumbers.stream().map(Number::longValue).toList()
+                    : List.of();
+
+            if (messageIds.isEmpty()) {
+                log.warn("Empty messageIds in offline sync ack from user {}", session.getUserId());
+                return;
+            }
+
+            // Acknowledge delivery via API
+            boolean success = apiClient.acknowledgeOfflineMessages(
+                    session.getUserId(), session.getDeviceId(), messageIds);
+
+            if (success) {
+                log.debug("Acknowledged {} offline messages for user {} device {}",
+                        messageIds.size(), session.getUserId(), session.getDeviceId());
+            } else {
+                log.warn("Failed to acknowledge offline messages for user {}", session.getUserId());
+            }
+        } catch (Exception e) {
+            log.error("Failed to process offline sync ack", e);
+        }
+    }
+
     public void handleDisconnect(UserSession session) {
         // Remove from Redis online set if no other devices
         var remainingSessions = sessionManager.getSessionsByUserId(session.getUserId());

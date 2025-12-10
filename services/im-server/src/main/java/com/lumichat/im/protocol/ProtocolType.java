@@ -10,6 +10,8 @@ public final class ProtocolType {
     public static final int READ_ACK = 12;
     public static final int RECALL_MESSAGE = 13;
     public static final int SYNC_REQUEST = 20;
+    public static final int OFFLINE_SYNC_REQUEST = 21;  // Request offline messages on connect
+    public static final int OFFLINE_SYNC_ACK = 22;      // Acknowledge offline message delivery
 
     // Server to Client
     public static final int LOGIN_RESPONSE = 101;
@@ -21,6 +23,8 @@ public final class ProtocolType {
     public static final int RECALL_ACK = 113;
     public static final int RECALL_NOTIFY = 114;
     public static final int SYNC_RESPONSE = 120;
+    public static final int OFFLINE_SYNC_RESPONSE = 121;  // Offline messages delivery
+    public static final int OFFLINE_SYNC_COMPLETE = 122;  // All offline messages delivered
 
     // System Messages
     public static final int KICKED_OFFLINE = 200;

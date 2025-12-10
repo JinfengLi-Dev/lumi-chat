@@ -197,4 +197,109 @@ public class ApiClient {
             boolean success,
             String error
     ) {}
+
+    /**
+     * Queue a message for offline user delivery.
+     */
+    public QueueMessageResult queueOfflineMessage(Long targetUserId, String targetDeviceId,
+                                                   Long messageId, Long conversationId) {
+        try {
+            String url = apiBaseUrl + "/sync/queue";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("X-Internal-Service", "im-server");
+
+            Map<String, Object> body = new java.util.HashMap<>();
+            body.put("targetUserId", targetUserId);
+            body.put("messageId", messageId);
+            body.put("conversationId", conversationId);
+            if (targetDeviceId != null) {
+                body.put("targetDeviceId", targetDeviceId);
+            }
+
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url, HttpMethod.POST, entity, String.class);
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                return new QueueMessageResult(true, null);
+            } else {
+                JsonNode root = objectMapper.readTree(response.getBody());
+                String error = root.path("message").asText("Unknown error");
+                return new QueueMessageResult(false, error);
+            }
+        } catch (Exception e) {
+            log.error("Error queuing offline message for user {}", targetUserId, e);
+            return new QueueMessageResult(false, e.getMessage());
+        }
+    }
+
+    /**
+     * Get pending offline messages for a user/device.
+     */
+    public List<Map<String, Object>> getPendingOfflineMessages(Long userId, String deviceId, int limit) {
+        try {
+            String url = apiBaseUrl + "/sync/messages"
+                    + "?deviceId=" + deviceId
+                    + "&limit=" + limit;
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-Internal-Service", "im-server");
+            headers.set("X-User-Id", userId.toString());
+
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url, HttpMethod.GET, entity, String.class);
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                JsonNode root = objectMapper.readTree(response.getBody());
+                JsonNode data = root.path("data").path("messages");
+
+                if (data.isArray()) {
+                    return objectMapper.convertValue(data,
+                            objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class));
+                }
+            }
+            return List.of();
+        } catch (Exception e) {
+            log.error("Error getting pending offline messages for user {}", userId, e);
+            return List.of();
+        }
+    }
+
+    /**
+     * Acknowledge offline message delivery.
+     */
+    public boolean acknowledgeOfflineMessages(Long userId, String deviceId, List<Long> messageIds) {
+        try {
+            String url = apiBaseUrl + "/sync/ack";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("X-Internal-Service", "im-server");
+            headers.set("X-User-Id", userId.toString());
+
+            Map<String, Object> body = new java.util.HashMap<>();
+            body.put("deviceId", deviceId);
+            body.put("messageIds", messageIds);
+
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url, HttpMethod.POST, entity, String.class);
+
+            return response.getStatusCode().is2xxSuccessful();
+        } catch (Exception e) {
+            log.error("Error acknowledging offline messages for user {}", userId, e);
+            return false;
+        }
+    }
+
+    public record QueueMessageResult(
+            boolean success,
+            String error
+    ) {}
 }

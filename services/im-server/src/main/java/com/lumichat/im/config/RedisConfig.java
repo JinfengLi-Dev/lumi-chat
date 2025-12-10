@@ -66,17 +66,32 @@ public class RedisConfig {
                     return;
                 }
 
+                // Parse msgId to Long for offline queue (server-assigned msgId is numeric)
+                Long messageIdLong = null;
+                try {
+                    messageIdLong = Long.parseLong(msgId);
+                } catch (NumberFormatException e) {
+                    log.warn("Could not parse msgId '{}' as Long for offline queue", msgId);
+                }
+
                 // Broadcast message to all participants
+                int onlineCount = 0;
+                int offlineCount = 0;
+
                 for (Long participantId : participants) {
                     var sessions = sessionManager.getSessionsByUserId(participantId);
+
+                    // Check if user has any online sessions (excluding sender's originating device)
+                    boolean hasOnlineSession = false;
                     for (var session : sessions) {
-                        // Don't send back to the originating device
+                        // Skip the originating device
                         if (participantId.equals(senderId) && session.getDeviceId().equals(senderDeviceId)) {
                             continue;
                         }
 
-                        // Send Message directly (not wrapped in outer object)
-                        // Frontend expects: { id, msgId, conversationId, senderId, msgType, content, ... }
+                        hasOnlineSession = true;
+
+                        // Send message to online devices
                         Map<String, Object> messagePayload = new java.util.HashMap<>(messageData);
                         messagePayload.put("msgId", msgId);
                         messagePayload.put("conversationId", conversationId);
@@ -85,11 +100,23 @@ public class RedisConfig {
 
                         Packet packet = Packet.of(ProtocolType.RECEIVE_MESSAGE, messagePayload);
                         messageProcessor.sendToUserDevice(participantId, session.getDeviceId(), packet);
+                        onlineCount++;
+                    }
+
+                    // If participant is offline (no sessions) and not the sender, queue for offline delivery
+                    if (!hasOnlineSession && !participantId.equals(senderId) && messageIdLong != null) {
+                        var result = apiClient.queueOfflineMessage(participantId, null, messageIdLong, conversationId);
+                        if (result.success()) {
+                            offlineCount++;
+                            log.debug("Queued message {} for offline user {}", msgId, participantId);
+                        } else {
+                            log.warn("Failed to queue message for offline user {}: {}", participantId, result.error());
+                        }
                     }
                 }
 
-                log.debug("Message broadcast to {} participants for conversation {}",
-                        participants.size(), conversationId);
+                log.debug("Message {} broadcast: {} online devices, {} offline users queued",
+                        msgId, onlineCount, offlineCount);
             } catch (Exception e) {
                 log.error("Failed to process Redis message", e);
             }
