@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
-import { friendApi } from '@/api/friend'
+import { useFriendStore } from '@/stores/friend'
 import { conversationApi } from '@/api/conversation'
 import FriendItem from './FriendItem.vue'
 import type { Friend } from '@/types'
@@ -12,29 +12,27 @@ const emit = defineEmits<{
   (e: 'context-menu', friend: Friend, event: MouseEvent): void
 }>()
 
-const friends = ref<Friend[]>([])
-const isLoading = ref(false)
+const friendStore = useFriendStore()
 const searchQuery = ref('')
 
 const filteredFriends = computed(() => {
-  if (!searchQuery.value) return friends.value
+  const friends = friendStore.sortedFriends
+
+  if (!searchQuery.value) return friends
 
   const query = searchQuery.value.toLowerCase()
-  return friends.value.filter((friend) => {
+  return friends.filter((friend) => {
     const displayName = friend.remark || friend.nickname || ''
     return displayName.toLowerCase().includes(query)
   })
 })
 
 async function loadFriends() {
-  isLoading.value = true
   try {
-    friends.value = await friendApi.getFriends()
+    await friendStore.fetchFriends()
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to load friends'
     ElMessage.error(message)
-  } finally {
-    isLoading.value = false
   }
 }
 
@@ -64,7 +62,14 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="friends-list" v-loading="isLoading">
+  <div class="friends-list" v-loading="friendStore.loading">
+    <!-- Header with online count -->
+    <div class="header">
+      <span class="online-count">
+        {{ friendStore.onlineFriendsCount }}/{{ friendStore.friends.length }} Online
+      </span>
+    </div>
+
     <!-- Search -->
     <div class="search-container">
       <el-input
@@ -82,11 +87,12 @@ onMounted(() => {
         v-for="friend in filteredFriends"
         :key="friend.id"
         :friend="friend"
+        :is-online="friendStore.isUserOnline(friend.id)"
         @click="handleFriendClick(friend)"
         @context-menu="(e) => handleContextMenu(friend, e)"
       />
 
-      <div v-if="filteredFriends.length === 0 && !isLoading" class="empty-state">
+      <div v-if="filteredFriends.length === 0 && !friendStore.loading" class="empty-state">
         <el-empty
           :description="searchQuery ? 'No friends found' : 'No friends yet'"
           :image-size="80"
@@ -101,6 +107,16 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+.header {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.online-count {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .search-container {

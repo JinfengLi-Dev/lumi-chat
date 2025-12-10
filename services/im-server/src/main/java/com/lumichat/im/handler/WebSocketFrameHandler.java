@@ -53,6 +53,8 @@ public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocket
             case ProtocolType.SYNC_REQUEST -> messageProcessor.handleSyncRequest(ctx, packet);
             case ProtocolType.OFFLINE_SYNC_REQUEST -> messageProcessor.handleOfflineSyncRequest(ctx, packet);
             case ProtocolType.OFFLINE_SYNC_ACK -> messageProcessor.handleOfflineSyncAck(ctx, packet);
+            case ProtocolType.ONLINE_STATUS_REQUEST -> messageProcessor.handleOnlineStatusRequest(ctx, packet);
+            case ProtocolType.ONLINE_STATUS_SUBSCRIBE -> messageProcessor.handleOnlineStatusSubscribe(ctx, packet);
             default -> log.warn("Unknown packet type: {}", packet.getType());
         }
     }

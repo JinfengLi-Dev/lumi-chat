@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.Instant;
+import java.util.List;
 
 @Data
 @Builder
@@ -16,6 +17,7 @@ public class UserSession {
     private Channel channel;
     private Instant connectedAt;
     private Instant lastActiveAt;
+    private List<Long> subscribedUserIds;  // User IDs to receive online status updates for
 
     public void updateLastActive() {
         this.lastActiveAt = Instant.now();

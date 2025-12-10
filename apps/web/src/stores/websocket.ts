@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { websocketService, type ConnectionStatus } from '@/services/websocket'
 import { useChatStore } from './chat'
 import { useUserStore } from './user'
+import { useFriendStore } from './friend'
 import type { Message } from '@/types'
 
 interface WebSocketState {
@@ -41,10 +42,23 @@ export const useWebSocketStore = defineStore('websocket', {
       }
 
       // Determine WebSocket URL
+      // In development, use Vite's proxy (connect to same host/port as the app)
+      // In production, use environment variables or direct connection
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const wsHost = import.meta.env.VITE_WS_HOST || window.location.hostname
-      const wsPort = import.meta.env.VITE_WS_PORT || '7901'
-      const wsUrl = `${wsProtocol}//${wsHost}:${wsPort}/ws`
+      let wsUrl: string
+
+      if (import.meta.env.VITE_WS_URL) {
+        // Use explicit URL if provided
+        wsUrl = import.meta.env.VITE_WS_URL
+      } else if (import.meta.env.DEV) {
+        // In development, use Vite's proxy (same origin)
+        wsUrl = `${wsProtocol}//${window.location.host}/ws`
+      } else {
+        // In production, configure via environment
+        const wsHost = import.meta.env.VITE_WS_HOST || window.location.hostname
+        const wsPort = import.meta.env.VITE_WS_PORT || '17901'
+        wsUrl = `${wsProtocol}//${wsHost}:${wsPort}/ws`
+      }
 
       this.lastError = null
       this.kickedOfflineReason = null
@@ -91,6 +105,16 @@ export const useWebSocketStore = defineStore('websocket', {
         onReadSync: (conversationId, lastReadMsgId) => {
           const chatStore = useChatStore()
           chatStore.handleReadStatusSync(conversationId, lastReadMsgId)
+        },
+
+        onOnlineStatusResponse: (statuses) => {
+          const friendStore = useFriendStore()
+          friendStore.handleOnlineStatusResponse(statuses)
+        },
+
+        onOnlineStatusChange: (userId, isOnline) => {
+          const friendStore = useFriendStore()
+          friendStore.handleOnlineStatusChange(userId, isOnline)
         },
 
         onKickedOffline: (reason) => {

@@ -12,6 +12,8 @@ public final class ProtocolType {
     public static final int SYNC_REQUEST = 20;
     public static final int OFFLINE_SYNC_REQUEST = 21;  // Request offline messages on connect
     public static final int OFFLINE_SYNC_ACK = 22;      // Acknowledge offline message delivery
+    public static final int ONLINE_STATUS_REQUEST = 23; // Request online status for user IDs
+    public static final int ONLINE_STATUS_SUBSCRIBE = 24; // Subscribe to online status changes
 
     // Server to Client
     public static final int LOGIN_RESPONSE = 101;
@@ -25,6 +27,8 @@ public final class ProtocolType {
     public static final int SYNC_RESPONSE = 120;
     public static final int OFFLINE_SYNC_RESPONSE = 121;  // Offline messages delivery
     public static final int OFFLINE_SYNC_COMPLETE = 122;  // All offline messages delivered
+    public static final int ONLINE_STATUS_RESPONSE = 123; // Response with user online statuses
+    public static final int ONLINE_STATUS_CHANGE = 124;   // Broadcast when a user's status changes
 
     // System Messages
     public static final int KICKED_OFFLINE = 200;

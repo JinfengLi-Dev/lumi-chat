@@ -11,6 +11,10 @@ export const ProtocolType = {
   READ_ACK: 12,
   RECALL_MESSAGE: 13,
   SYNC_REQUEST: 20,
+  OFFLINE_SYNC_REQUEST: 21,
+  OFFLINE_SYNC_ACK: 22,
+  ONLINE_STATUS_REQUEST: 23,
+  ONLINE_STATUS_SUBSCRIBE: 24,
 
   // Server to Client
   LOGIN_RESPONSE: 101,
@@ -22,6 +26,10 @@ export const ProtocolType = {
   RECALL_ACK: 113,
   RECALL_NOTIFY: 114,
   SYNC_RESPONSE: 120,
+  OFFLINE_SYNC_RESPONSE: 121,
+  OFFLINE_SYNC_COMPLETE: 122,
+  ONLINE_STATUS_RESPONSE: 123,
+  ONLINE_STATUS_CHANGE: 124,
 
   // System Messages
   KICKED_OFFLINE: 200,
@@ -63,6 +71,8 @@ export interface WebSocketEventHandlers {
   onTyping?: (conversationId: number, userId: number) => void
   onRecall?: (msgId: string) => void
   onReadSync?: (conversationId: number, lastReadMsgId: number) => void
+  onOnlineStatusChange?: (userId: number, isOnline: boolean) => void
+  onOnlineStatusResponse?: (statuses: Record<number, boolean>) => void
   onKickedOffline?: (reason: string) => void
   onError?: (error: string) => void
 }
@@ -289,6 +299,14 @@ class WebSocketService {
           this.handleKickedOffline(packet.data as { reason: string })
           break
 
+        case ProtocolType.ONLINE_STATUS_RESPONSE:
+          this.handleOnlineStatusResponse(packet.data as { success: boolean; statuses: Record<number, boolean> })
+          break
+
+        case ProtocolType.ONLINE_STATUS_CHANGE:
+          this.handleOnlineStatusChange(packet.data as { userId: number; isOnline: boolean })
+          break
+
         case ProtocolType.SERVER_ERROR:
           this.handlers.onError?.((packet.data as { error: string }).error)
           break
@@ -322,6 +340,16 @@ class WebSocketService {
     this.stopReconnect()
     this.disconnect()
     this.handlers.onKickedOffline?.(data.reason)
+  }
+
+  private handleOnlineStatusResponse(data: { success: boolean; statuses: Record<number, boolean> }): void {
+    if (data.success) {
+      this.handlers.onOnlineStatusResponse?.(data.statuses)
+    }
+  }
+
+  private handleOnlineStatusChange(data: { userId: number; isOnline: boolean }): void {
+    this.handlers.onOnlineStatusChange?.(data.userId, data.isOnline)
   }
 
   private generateSeq(): string {
@@ -415,6 +443,14 @@ class WebSocketService {
 
   requestSync(lastSyncCursor?: number): Promise<void> {
     return this.send(ProtocolType.SYNC_REQUEST, { lastSyncCursor })
+  }
+
+  requestOnlineStatus(userIds: number[]): Promise<void> {
+    return this.send(ProtocolType.ONLINE_STATUS_REQUEST, { userIds })
+  }
+
+  subscribeOnlineStatus(userIds: number[]): Promise<void> {
+    return this.send(ProtocolType.ONLINE_STATUS_SUBSCRIBE, { userIds })
   }
 
   updateToken(newToken: string): void {

@@ -3,6 +3,7 @@ import type { Friend } from '@/types'
 
 defineProps<{
   friend: Friend
+  isOnline?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -26,9 +27,16 @@ function handleContextMenu(event: MouseEvent) {
     @click="emit('click')"
     @contextmenu="handleContextMenu"
   >
-    <el-avatar :src="friend.avatar" :size="45" shape="circle">
-      {{ getDisplayName(friend).charAt(0) }}
-    </el-avatar>
+    <div class="avatar-wrapper">
+      <el-avatar :src="friend.avatar" :size="45" shape="circle">
+        {{ getDisplayName(friend).charAt(0) }}
+      </el-avatar>
+      <span
+        v-if="isOnline !== undefined"
+        class="online-indicator"
+        :class="{ online: isOnline }"
+      />
+    </div>
 
     <div class="friend-info">
       <div class="friend-name">{{ getDisplayName(friend) }}</div>
@@ -54,6 +62,26 @@ function handleContextMenu(event: MouseEvent) {
 
 .friend-item:hover {
   background-color: var(--el-fill-color-light);
+}
+
+.avatar-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.online-indicator {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--el-text-color-secondary);
+  border: 2px solid var(--el-bg-color);
+}
+
+.online-indicator.online {
+  background-color: var(--el-color-success);
 }
 
 .friend-info {

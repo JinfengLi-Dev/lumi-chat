@@ -46,6 +46,10 @@ public class MessageProcessor {
                     return;
                 }
 
+                // Check if this is the first device for this user
+                var existingSessions = sessionManager.getSessionsByUserId(userId);
+                boolean isFirstDevice = existingSessions.isEmpty();
+
                 sessionManager.addSession(ctx.channel(), userId, deviceId, loginData.getDeviceType());
 
                 // Publish online status to Redis for other services
@@ -53,6 +57,11 @@ public class MessageProcessor {
 
                 sendResponse(ctx, ProtocolType.LOGIN_RESPONSE, packet.getSeq(),
                         Map.of("success", true, "userId", userId));
+
+                // Broadcast online status to subscribers if this is the first device
+                if (isFirstDevice) {
+                    broadcastOnlineStatusChange(userId, true);
+                }
 
                 log.info("User logged in: userId={}, deviceId={}", userId, deviceId);
             } else {
@@ -351,15 +360,116 @@ public class MessageProcessor {
         }
     }
 
+    /**
+     * Handle online status request - check which user IDs are online.
+     */
+    public void handleOnlineStatusRequest(ChannelHandlerContext ctx, Packet packet) {
+        UserSession session = sessionManager.getSessionByChannel(ctx.channel());
+        if (session == null) return;
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) packet.getData();
+
+            @SuppressWarnings("unchecked")
+            List<Number> userIdNumbers = (List<Number>) data.get("userIds");
+            List<Long> userIds = userIdNumbers != null
+                    ? userIdNumbers.stream().map(Number::longValue).toList()
+                    : List.of();
+
+            if (userIds.isEmpty()) {
+                sendResponse(ctx, ProtocolType.ONLINE_STATUS_RESPONSE, packet.getSeq(),
+                        Map.of("success", true, "statuses", Map.of()));
+                return;
+            }
+
+            // Check online status from Redis
+            Map<Long, Boolean> statuses = new java.util.HashMap<>();
+            for (Long userId : userIds) {
+                Boolean isOnline = redisTemplate.opsForSet().isMember("online:users", userId.toString());
+                statuses.put(userId, isOnline != null && isOnline);
+            }
+
+            sendResponse(ctx, ProtocolType.ONLINE_STATUS_RESPONSE, packet.getSeq(),
+                    Map.of("success", true, "statuses", statuses));
+
+            log.debug("Online status response sent: userId={}, checkedIds={}",
+                    session.getUserId(), userIds.size());
+        } catch (Exception e) {
+            log.error("Failed to process online status request", e);
+            sendResponse(ctx, ProtocolType.ONLINE_STATUS_RESPONSE, packet.getSeq(),
+                    Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Handle online status subscription - subscribe to status changes for specific users.
+     */
+    public void handleOnlineStatusSubscribe(ChannelHandlerContext ctx, Packet packet) {
+        UserSession session = sessionManager.getSessionByChannel(ctx.channel());
+        if (session == null) return;
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) packet.getData();
+
+            @SuppressWarnings("unchecked")
+            List<Number> userIdNumbers = (List<Number>) data.get("userIds");
+            List<Long> userIds = userIdNumbers != null
+                    ? userIdNumbers.stream().map(Number::longValue).toList()
+                    : List.of();
+
+            // Store subscriptions in session (or a separate subscription manager)
+            session.setSubscribedUserIds(userIds);
+
+            log.debug("User {} subscribed to online status updates for {} users",
+                    session.getUserId(), userIds.size());
+        } catch (Exception e) {
+            log.error("Failed to process online status subscribe", e);
+        }
+    }
+
+    /**
+     * Broadcast online status change to all subscribers.
+     */
+    public void broadcastOnlineStatusChange(Long userId, boolean isOnline) {
+        try {
+            Packet statusPacket = Packet.of(ProtocolType.ONLINE_STATUS_CHANGE,
+                    Map.of("userId", userId, "isOnline", isOnline));
+
+            // Get all sessions and check if they're subscribed to this user
+            var allSessions = sessionManager.getAllSessions();
+            for (UserSession session : allSessions) {
+                // Don't send to the user themselves
+                if (session.getUserId().equals(userId)) continue;
+
+                // Check if subscribed to this user's status
+                List<Long> subscribedIds = session.getSubscribedUserIds();
+                if (subscribedIds != null && subscribedIds.contains(userId)) {
+                    sendPacket(session, statusPacket);
+                }
+            }
+
+            log.debug("Broadcasted online status change: userId={}, isOnline={}", userId, isOnline);
+        } catch (Exception e) {
+            log.error("Failed to broadcast online status change", e);
+        }
+    }
+
     public void handleDisconnect(UserSession session) {
+        Long userId = session.getUserId();
+
         // Remove from Redis online set if no other devices
-        var remainingSessions = sessionManager.getSessionsByUserId(session.getUserId());
+        var remainingSessions = sessionManager.getSessionsByUserId(userId);
         if (remainingSessions.size() <= 1) {
-            redisTemplate.opsForSet().remove("online:users", session.getUserId().toString());
+            redisTemplate.opsForSet().remove("online:users", userId.toString());
+
+            // Broadcast offline status to subscribers
+            broadcastOnlineStatusChange(userId, false);
         }
 
         log.info("User disconnected: userId={}, deviceId={}",
-                session.getUserId(), session.getDeviceId());
+                userId, session.getDeviceId());
     }
 
     public void sendToUser(Long userId, Packet packet) {
