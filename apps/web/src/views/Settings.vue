@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { authApi } from '@/api/auth'
+import DeviceManagement from '@/components/settings/DeviceManagement.vue'
 import type { FormInstance, FormRules } from 'element-plus'
 
 const router = useRouter()
@@ -104,25 +105,6 @@ async function handleUploadAvatar(file: any) {
   return false // Prevent default upload
 }
 
-async function handleLogoutDevice(deviceId: string) {
-  try {
-    await ElMessageBox.confirm('Are you sure you want to logout this device?', 'Confirm')
-    await userStore.logoutDevice(deviceId)
-    ElMessage.success('Device logged out')
-  } catch {
-    // User cancelled
-  }
-}
-
-async function handleLogoutAllDevices() {
-  try {
-    await ElMessageBox.confirm('Are you sure you want to logout all other devices?', 'Confirm')
-    await userStore.logoutAllDevices()
-    router.push('/login')
-  } catch {
-    // User cancelled
-  }
-}
 </script>
 
 <template>
@@ -155,7 +137,7 @@ async function handleLogoutAllDevices() {
         <div
           class="menu-item"
           :class="{ active: activeTab === 'devices' }"
-          @click="activeTab = 'devices'; userStore.fetchDevices()"
+          @click="activeTab = 'devices'"
         >
           <el-icon><Monitor /></el-icon>
           <span>Devices</span>
@@ -278,34 +260,7 @@ async function handleLogoutAllDevices() {
         <h2>Logged-in Devices</h2>
         <p class="section-desc">Manage devices that are logged into your account</p>
 
-        <div class="device-list">
-          <div v-for="device in userStore.devices" :key="device.deviceId" class="device-item">
-            <div class="device-info">
-              <el-icon :size="32">
-                <Monitor v-if="device.deviceType === 'web' || device.deviceType === 'pc'" />
-                <Iphone v-else />
-              </el-icon>
-              <div>
-                <div class="device-name">{{ device.deviceName || device.deviceType }}</div>
-                <div class="device-meta">
-                  Last active: {{ new Date(device.lastActiveAt).toLocaleString() }}
-                  <el-tag v-if="device.isOnline" size="small" type="success">Online</el-tag>
-                </div>
-              </div>
-            </div>
-            <el-button
-              type="danger"
-              text
-              @click="handleLogoutDevice(device.deviceId)"
-            >
-              Logout
-            </el-button>
-          </div>
-        </div>
-
-        <el-button type="danger" plain @click="handleLogoutAllDevices" style="margin-top: 20px">
-          Logout All Other Devices
-        </el-button>
+        <DeviceManagement />
       </div>
 
       <!-- About Tab -->
@@ -436,38 +391,6 @@ async function handleLogoutAllDevices() {
   margin-top: 10px;
   font-size: 12px;
   color: #909399;
-}
-
-.device-list {
-  margin-top: 20px;
-}
-
-.device-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 15px;
-  background-color: #fff;
-  border-radius: 8px;
-  margin-bottom: 10px;
-}
-
-.device-info {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.device-name {
-  font-weight: 500;
-}
-
-.device-meta {
-  font-size: 12px;
-  color: #909399;
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 .about-info {
