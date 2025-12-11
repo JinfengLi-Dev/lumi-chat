@@ -43,7 +43,7 @@ public class ConversationController {
     }
 
     /**
-     * Create or get private conversation with another user
+     * Create or get private conversation with another user (must be friends)
      * POST /conversations/private
      */
     @PostMapping("/private")
@@ -51,6 +51,19 @@ public class ConversationController {
             @AuthenticationPrincipal UserPrincipal principal,
             @RequestBody CreatePrivateConversationRequest request) {
         ConversationResponse conversation = conversationService.getOrCreatePrivateConversation(
+                principal.getId(), request.targetUserId());
+        return ApiResponse.success(conversation);
+    }
+
+    /**
+     * Create or get stranger conversation with another user (for non-friends)
+     * POST /conversations/stranger
+     */
+    @PostMapping("/stranger")
+    public ApiResponse<ConversationResponse> createStrangerConversation(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody CreatePrivateConversationRequest request) {
+        ConversationResponse conversation = conversationService.getOrCreateStrangerConversation(
                 principal.getId(), request.targetUserId());
         return ApiResponse.success(conversation);
     }

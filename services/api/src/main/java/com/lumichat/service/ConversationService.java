@@ -181,6 +181,65 @@ public class ConversationService {
     }
 
     /**
+     * Create or get stranger conversation between two users (for non-friends)
+     */
+    @Transactional
+    public ConversationResponse getOrCreateStrangerConversation(Long userId, Long targetUserId) {
+        // Check if conversation already exists (either stranger or private_chat)
+        List<UserConversation> existingUc = userConversationRepository
+                .findAllByUserIdOrderByPinnedAndTime(userId);
+
+        for (UserConversation uc : existingUc) {
+            Conversation.ConversationType type = uc.getConversation().getType();
+            if (type == Conversation.ConversationType.stranger ||
+                type == Conversation.ConversationType.private_chat) {
+                List<Long> participantIds = arrayToList(uc.getConversation().getParticipantIds());
+                if (participantIds.contains(targetUserId) && participantIds.contains(userId)) {
+                    // Found existing conversation
+                    if (uc.getIsHidden()) {
+                        uc.setIsHidden(false);
+                        userConversationRepository.save(uc);
+                    }
+                    return buildConversationResponse(uc, userId);
+                }
+            }
+        }
+
+        // Create new conversation with stranger type
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new RuntimeException("Target user not found"));
+
+        Long[] participantIdsArray = new Long[]{userId, targetUserId};
+
+        Conversation conversation = Conversation.builder()
+                .type(Conversation.ConversationType.stranger)
+                .participantIds(participantIdsArray)
+                .build();
+        conversation = conversationRepository.save(conversation);
+
+        // Create user conversation entries for both users
+        User currentUser = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Current user not found"));
+
+        UserConversation uc1 = UserConversation.builder()
+                .user(currentUser)
+                .conversation(conversation)
+                .build();
+        userConversationRepository.save(uc1);
+
+        UserConversation uc2 = UserConversation.builder()
+                .user(targetUser)
+                .conversation(conversation)
+                .build();
+        userConversationRepository.save(uc2);
+
+        log.info("Created stranger conversation {} between users {} and {}",
+                conversation.getId(), userId, targetUserId);
+
+        return buildConversationResponse(uc1, userId);
+    }
+
+    /**
      * Build a conversation response with all details
      */
     private ConversationResponse buildConversationResponse(UserConversation uc, Long currentUserId) {

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
-import { userApi, friendApi } from '@/api'
+import { Search, ChatDotRound } from '@element-plus/icons-vue'
+import { userApi, friendApi, conversationApi } from '@/api'
+import { useChatStore } from '@/stores/chat'
 import type { User } from '@/types'
 
 const props = defineProps<{
@@ -13,6 +15,9 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void
   (e: 'request-sent'): void
 }>()
+
+const router = useRouter()
+const chatStore = useChatStore()
 
 const dialogVisible = computed({
   get: () => props.modelValue,
@@ -66,6 +71,27 @@ async function sendFriendRequest() {
     handleClose()
   } catch (error: any) {
     ElMessage.error(error.response?.data?.message || 'Failed to send request')
+  } finally {
+    isSending.value = false
+  }
+}
+
+async function sendMessageToStranger() {
+  if (!selectedUser.value) return
+
+  isSending.value = true
+  try {
+    // Create or get stranger conversation
+    const conversation = await conversationApi.createStrangerConversation(selectedUser.value.id)
+
+    // Refresh conversations list
+    await chatStore.fetchConversations()
+
+    // Navigate to the conversation
+    handleClose()
+    router.push(`/chat/${conversation.id}`)
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || 'Failed to start conversation')
   } finally {
     isSending.value = false
   }
@@ -163,6 +189,14 @@ function handleClose() {
 
     <template #footer>
       <el-button @click="handleClose">Cancel</el-button>
+      <el-button
+        v-if="selectedUser"
+        :loading="isSending"
+        @click="sendMessageToStranger"
+      >
+        <el-icon><ChatDotRound /></el-icon>
+        Send Message
+      </el-button>
       <el-button
         v-if="selectedUser"
         type="primary"

@@ -38,6 +38,9 @@ const statusClass = computed(() => {
   return 'status-offline'
 })
 
+// Show stranger badge when not self and not a friend
+const isStranger = computed(() => !props.isSelf && !props.isFriend)
+
 const formattedCreatedAt = computed(() => {
   if (!props.user?.createdAt) return ''
   try {
@@ -104,7 +107,12 @@ function handleEditProfile() {
         </el-avatar>
 
         <div class="profile-basic">
-          <h2 class="profile-name">{{ displayName }}</h2>
+          <div class="profile-name-row">
+            <h2 class="profile-name">{{ displayName }}</h2>
+            <el-tag v-if="isStranger" type="info" size="small" class="stranger-badge">
+              Stranger
+            </el-tag>
+          </div>
           <div class="profile-uid">ID: {{ user.uid }}</div>
           <div class="profile-status" :class="statusClass">
             <span class="status-dot"></span>
@@ -155,7 +163,6 @@ function handleEditProfile() {
         </template>
         <template v-else>
           <el-button
-            v-if="isFriend"
             type="primary"
             @click="handleSendMessage"
           >
@@ -163,7 +170,7 @@ function handleEditProfile() {
             Send Message
           </el-button>
           <el-button
-            v-else
+            v-if="!isFriend"
             @click="handleAddFriend"
           >
             <el-icon><Plus /></el-icon>
@@ -202,11 +209,22 @@ function handleEditProfile() {
   min-width: 0;
 }
 
+.profile-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
 .profile-name {
   font-size: 20px;
   font-weight: 600;
-  margin: 0 0 4px 0;
+  margin: 0;
   color: var(--el-text-color-primary);
+}
+
+.stranger-badge {
+  flex-shrink: 0;
 }
 
 .profile-uid {

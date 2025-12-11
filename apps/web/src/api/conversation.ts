@@ -19,6 +19,13 @@ export const conversationApi = {
     return response.data.data
   },
 
+  async createStrangerConversation(targetUserId: number): Promise<Conversation> {
+    const response = await apiClient.post<ApiResponse<Conversation>>('/conversations/stranger', {
+      targetUserId,
+    })
+    return response.data.data
+  },
+
   async deleteConversation(id: number): Promise<void> {
     await apiClient.delete(`/conversations/${id}`)
   },
