@@ -55,6 +55,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/files/{id}", "/files/{id}/download", "/files/{id}/info").permitAll()
                 // Internal service endpoints (authenticated via InternalServiceFilter)
                 .requestMatchers("/internal/**").permitAll()
+                // Sync queue endpoint is called by IM server with internal service auth
+                .requestMatchers("/sync/queue").permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(internalServiceFilter, UsernamePasswordAuthenticationFilter.class)

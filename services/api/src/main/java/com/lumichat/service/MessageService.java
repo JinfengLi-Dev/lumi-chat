@@ -1,5 +1,6 @@
 package com.lumichat.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lumichat.dto.request.SendMessageRequest;
 import com.lumichat.dto.response.MessageResponse;
 import com.lumichat.entity.Conversation;
@@ -13,12 +14,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -30,6 +34,10 @@ public class MessageService {
     private final ConversationRepository conversationRepository;
     private final UserConversationRepository userConversationRepository;
     private final UserRepository userRepository;
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
+
+    private static final String REDIS_CHANNEL_MESSAGES = "im:messages";
 
     /**
      * Get messages for a conversation with pagination
@@ -110,6 +118,9 @@ public class MessageService {
         // Increment unread count for other participants
         userConversationRepository.incrementUnreadForOthers(conversation.getId(), userId);
 
+        // Publish message to Redis for real-time delivery
+        publishMessageToRedis(userId, deviceId, message, sender);
+
         log.info("User {} sent message {} to conversation {}",
                 userId, message.getMsgId(), conversation.getId());
 
@@ -182,6 +193,9 @@ public class MessageService {
         // Increment unread count for other participants
         userConversationRepository.incrementUnreadForOthers(targetConversation.getId(), userId);
 
+        // Publish forwarded message to Redis for real-time delivery
+        publishMessageToRedis(userId, deviceId, message, sender);
+
         log.info("User {} forwarded message {} to conversation {}",
                 userId, msgId, targetConversationId);
 
@@ -224,5 +238,53 @@ public class MessageService {
             return content.substring(0, 100) + "...";
         }
         return content;
+    }
+
+    /**
+     * Publish message to Redis for real-time delivery to online users.
+     * If publishing fails, the message is still saved to DB and will be delivered via offline queue.
+     */
+    private void publishMessageToRedis(Long userId, String deviceId, Message message, User sender) {
+        try {
+            // Build sender info for display
+            Map<String, Object> senderInfo = new LinkedHashMap<>();
+            senderInfo.put("id", sender.getId());
+            senderInfo.put("nickname", sender.getNickname());
+            senderInfo.put("avatar", sender.getAvatar() != null ? sender.getAvatar() : "");
+
+            // Build message payload matching frontend expectations
+            Map<String, Object> messagePayload = new LinkedHashMap<>();
+            messagePayload.put("id", message.getId());
+            messagePayload.put("msgId", message.getMsgId());
+            messagePayload.put("conversationId", message.getConversation().getId());
+            messagePayload.put("msgType", message.getMsgType().toString());
+            messagePayload.put("content", message.getContent() != null ? message.getContent() : "");
+            messagePayload.put("metadata", message.getMetadata());
+            messagePayload.put("quoteMsgId", message.getQuoteMsgId());
+            messagePayload.put("atUserIds", message.getAtUserIds());
+            messagePayload.put("senderId", userId);
+            messagePayload.put("senderDeviceId", deviceId);
+            messagePayload.put("serverCreatedAt", message.getServerCreatedAt().toString());
+            messagePayload.put("sender", senderInfo);
+
+            // Build Redis event matching RedisConfig.messageListener() expectations
+            // IMPORTANT: msgId must be the database ID (Long as String) for offline queue compatibility
+            Map<String, Object> event = new LinkedHashMap<>();
+            event.put("type", "chat_message");
+            event.put("senderId", userId);
+            event.put("senderDeviceId", deviceId);
+            event.put("conversationId", message.getConversation().getId());
+            event.put("msgId", String.valueOf(message.getId())); // Use DB ID for offline queue
+            event.put("message", messagePayload);
+
+            String json = objectMapper.writeValueAsString(event);
+            redisTemplate.convertAndSend(REDIS_CHANNEL_MESSAGES, json);
+
+            log.debug("Published message {} to Redis channel {}", message.getMsgId(), REDIS_CHANNEL_MESSAGES);
+        } catch (Exception e) {
+            // Don't throw - message is saved to DB, will be delivered via offline queue when user reconnects
+            log.error("Failed to publish message {} to Redis (will be delivered via offline queue): {}",
+                    message.getMsgId(), e.getMessage());
+        }
     }
 }

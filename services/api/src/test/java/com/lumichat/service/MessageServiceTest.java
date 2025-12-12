@@ -1,5 +1,7 @@
 package com.lumichat.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lumichat.dto.request.SendMessageRequest;
 import com.lumichat.dto.response.MessageResponse;
 import com.lumichat.entity.Conversation;
@@ -21,11 +23,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -48,6 +52,12 @@ class MessageServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private StringRedisTemplate redisTemplate;
+
+    @Mock
+    private ObjectMapper objectMapper;
 
     @InjectMocks
     private MessageService messageService;
@@ -539,6 +549,218 @@ class MessageServiceTest {
             assertThatThrownBy(() -> messageService.deleteMessage(1L, "msg-not-found"))
                     .isInstanceOf(RuntimeException.class)
                     .hasMessage("Message not found");
+        }
+    }
+
+    @Nested
+    @DisplayName("Redis Publishing Tests")
+    class RedisPublishingTests {
+
+        @Test
+        @DisplayName("Should publish message to Redis after saving")
+        void shouldPublishToRedisAfterSaving() throws JsonProcessingException {
+            // Given
+            SendMessageRequest request = new SendMessageRequest();
+            request.setConversationId(100L);
+            request.setMsgType("text");
+            request.setContent("Hello World");
+
+            when(userConversationRepository.findByUserIdAndConversationId(1L, 100L))
+                    .thenReturn(Optional.of(userConversation));
+            when(conversationRepository.findById(100L)).thenReturn(Optional.of(conversation));
+            when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+            when(messageRepository.save(any(Message.class))).thenAnswer(inv -> {
+                Message m = inv.getArgument(0);
+                m.setId(501L);
+                m.setServerCreatedAt(LocalDateTime.now());
+                return m;
+            });
+            when(conversationRepository.save(any(Conversation.class))).thenReturn(conversation);
+            when(objectMapper.writeValueAsString(any())).thenReturn("{\"test\":\"json\"}");
+
+            // When
+            messageService.sendMessage(1L, "device-123", request);
+
+            // Then
+            verify(redisTemplate).convertAndSend(eq("im:messages"), anyString());
+        }
+
+        @Test
+        @DisplayName("Should include correct message format in Redis payload")
+        void shouldIncludeCorrectMessageFormat() throws JsonProcessingException {
+            // Given
+            SendMessageRequest request = new SendMessageRequest();
+            request.setConversationId(100L);
+            request.setMsgType("text");
+            request.setContent("Test content");
+
+            when(userConversationRepository.findByUserIdAndConversationId(1L, 100L))
+                    .thenReturn(Optional.of(userConversation));
+            when(conversationRepository.findById(100L)).thenReturn(Optional.of(conversation));
+            when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+            when(messageRepository.save(any(Message.class))).thenAnswer(inv -> {
+                Message m = inv.getArgument(0);
+                m.setId(501L);
+                m.setServerCreatedAt(LocalDateTime.now());
+                return m;
+            });
+            when(conversationRepository.save(any(Conversation.class))).thenReturn(conversation);
+
+            // Capture the map passed to objectMapper
+            ArgumentCaptor<Map> mapCaptor = ArgumentCaptor.forClass(Map.class);
+            when(objectMapper.writeValueAsString(mapCaptor.capture())).thenReturn("{\"test\":\"json\"}");
+
+            // When
+            messageService.sendMessage(1L, "device-123", request);
+
+            // Then
+            Map<String, Object> capturedEvent = mapCaptor.getValue();
+            assertThat(capturedEvent).containsKeys("type", "senderId", "senderDeviceId", "conversationId", "msgId", "message");
+            assertThat(capturedEvent.get("type")).isEqualTo("chat_message");
+            assertThat(capturedEvent.get("senderId")).isEqualTo(1L);
+            assertThat(capturedEvent.get("senderDeviceId")).isEqualTo("device-123");
+            assertThat(capturedEvent.get("conversationId")).isEqualTo(100L);
+        }
+
+        @Test
+        @DisplayName("Should continue saving message even if Redis publish fails")
+        void shouldContinueWhenRedisPublishFails() throws JsonProcessingException {
+            // Given
+            SendMessageRequest request = new SendMessageRequest();
+            request.setConversationId(100L);
+            request.setMsgType("text");
+            request.setContent("Hello");
+
+            when(userConversationRepository.findByUserIdAndConversationId(1L, 100L))
+                    .thenReturn(Optional.of(userConversation));
+            when(conversationRepository.findById(100L)).thenReturn(Optional.of(conversation));
+            when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+            when(messageRepository.save(any(Message.class))).thenAnswer(inv -> {
+                Message m = inv.getArgument(0);
+                m.setId(501L);
+                m.setServerCreatedAt(LocalDateTime.now());
+                return m;
+            });
+            when(conversationRepository.save(any(Conversation.class))).thenReturn(conversation);
+
+            // Make Redis throw an exception
+            when(objectMapper.writeValueAsString(any())).thenThrow(new RuntimeException("Redis connection failed"));
+
+            // When
+            MessageResponse result = messageService.sendMessage(1L, "device-123", request);
+
+            // Then - message should still be saved and returned
+            assertThat(result).isNotNull();
+            assertThat(result.getContent()).isEqualTo("Hello");
+            verify(messageRepository).save(any(Message.class));
+        }
+
+        @Test
+        @DisplayName("Should include sender info in Redis message payload")
+        void shouldIncludeSenderInfoInRedisMessage() throws JsonProcessingException {
+            // Given
+            testUser.setAvatar("https://example.com/avatar.jpg");
+            SendMessageRequest request = new SendMessageRequest();
+            request.setConversationId(100L);
+            request.setMsgType("text");
+            request.setContent("Hello");
+
+            when(userConversationRepository.findByUserIdAndConversationId(1L, 100L))
+                    .thenReturn(Optional.of(userConversation));
+            when(conversationRepository.findById(100L)).thenReturn(Optional.of(conversation));
+            when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+            when(messageRepository.save(any(Message.class))).thenAnswer(inv -> {
+                Message m = inv.getArgument(0);
+                m.setId(501L);
+                m.setServerCreatedAt(LocalDateTime.now());
+                return m;
+            });
+            when(conversationRepository.save(any(Conversation.class))).thenReturn(conversation);
+
+            ArgumentCaptor<Map> mapCaptor = ArgumentCaptor.forClass(Map.class);
+            when(objectMapper.writeValueAsString(mapCaptor.capture())).thenReturn("{\"test\":\"json\"}");
+
+            // When
+            messageService.sendMessage(1L, "device-123", request);
+
+            // Then
+            Map<String, Object> capturedEvent = mapCaptor.getValue();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> messagePayload = (Map<String, Object>) capturedEvent.get("message");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> sender = (Map<String, Object>) messagePayload.get("sender");
+
+            assertThat(sender).containsKeys("id", "nickname", "avatar");
+            assertThat(sender.get("id")).isEqualTo(1L);
+            assertThat(sender.get("nickname")).isEqualTo("TestUser");
+            assertThat(sender.get("avatar")).isEqualTo("https://example.com/avatar.jpg");
+        }
+
+        @Test
+        @DisplayName("Should use DB message ID (Long) as msgId for offline queue compatibility")
+        void shouldUseDbMessageIdForOfflineQueue() throws JsonProcessingException {
+            // Given
+            SendMessageRequest request = new SendMessageRequest();
+            request.setConversationId(100L);
+            request.setMsgType("text");
+            request.setContent("Hello");
+
+            when(userConversationRepository.findByUserIdAndConversationId(1L, 100L))
+                    .thenReturn(Optional.of(userConversation));
+            when(conversationRepository.findById(100L)).thenReturn(Optional.of(conversation));
+            when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+            when(messageRepository.save(any(Message.class))).thenAnswer(inv -> {
+                Message m = inv.getArgument(0);
+                m.setId(501L); // This is the DB ID that should be used
+                m.setServerCreatedAt(LocalDateTime.now());
+                return m;
+            });
+            when(conversationRepository.save(any(Conversation.class))).thenReturn(conversation);
+
+            ArgumentCaptor<Map> mapCaptor = ArgumentCaptor.forClass(Map.class);
+            when(objectMapper.writeValueAsString(mapCaptor.capture())).thenReturn("{\"test\":\"json\"}");
+
+            // When
+            messageService.sendMessage(1L, "device-123", request);
+
+            // Then - the outer msgId should be the DB ID as string (parseable as Long)
+            Map<String, Object> capturedEvent = mapCaptor.getValue();
+            String msgId = (String) capturedEvent.get("msgId");
+            assertThat(msgId).isEqualTo("501"); // DB ID as string
+            assertThat(Long.parseLong(msgId)).isEqualTo(501L); // Should be parseable as Long
+        }
+
+        @Test
+        @DisplayName("Should publish to Redis when forwarding message")
+        void shouldPublishToRedisWhenForwarding() throws JsonProcessingException {
+            // Given
+            Conversation targetConversation = Conversation.builder()
+                    .id(200L)
+                    .type(Conversation.ConversationType.private_chat)
+                    .build();
+
+            when(messageRepository.findByMsgId("msg-123456")).thenReturn(Optional.of(testMessage));
+            when(userConversationRepository.findByUserIdAndConversationId(1L, 200L))
+                    .thenReturn(Optional.of(UserConversation.builder()
+                            .user(testUser)
+                            .conversation(targetConversation)
+                            .build()));
+            when(conversationRepository.findById(200L)).thenReturn(Optional.of(targetConversation));
+            when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+            when(messageRepository.save(any(Message.class))).thenAnswer(inv -> {
+                Message m = inv.getArgument(0);
+                m.setId(502L);
+                m.setServerCreatedAt(LocalDateTime.now());
+                return m;
+            });
+            when(conversationRepository.save(any(Conversation.class))).thenReturn(targetConversation);
+            when(objectMapper.writeValueAsString(any())).thenReturn("{\"test\":\"json\"}");
+
+            // When
+            messageService.forwardMessage(1L, "device-123", "msg-123456", 200L);
+
+            // Then
+            verify(redisTemplate).convertAndSend(eq("im:messages"), anyString());
         }
     }
 }

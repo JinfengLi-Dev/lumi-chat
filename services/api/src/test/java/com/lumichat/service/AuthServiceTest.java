@@ -91,7 +91,8 @@ class AuthServiceTest {
             when(userRepository.findByEmailOrUid("test@example.com", "test@example.com"))
                     .thenReturn(Optional.of(testUser));
             when(passwordEncoder.matches("password123", "hashedPassword")).thenReturn(true);
-            when(userDeviceRepository.findByUserIdAndDeviceId(1L, "device-123"))
+            // AuthService now uses findByDeviceId first (globally) before findByUserIdAndDeviceId
+            when(userDeviceRepository.findByDeviceId("device-123"))
                     .thenReturn(Optional.empty());
             when(userDeviceRepository.save(any(UserDevice.class)))
                     .thenAnswer(inv -> inv.getArgument(0));
@@ -185,7 +186,8 @@ class AuthServiceTest {
             when(userRepository.findByEmailOrUid("test@example.com", "test@example.com"))
                     .thenReturn(Optional.of(testUser));
             when(passwordEncoder.matches("password123", "hashedPassword")).thenReturn(true);
-            when(userDeviceRepository.findByUserIdAndDeviceId(1L, "device-123"))
+            // AuthService now uses findByDeviceId first (globally)
+            when(userDeviceRepository.findByDeviceId("device-123"))
                     .thenReturn(Optional.of(existingDevice));
             when(userDeviceRepository.save(any(UserDevice.class)))
                     .thenAnswer(inv -> inv.getArgument(0));

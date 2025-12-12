@@ -16,6 +16,8 @@ public interface UserDeviceRepository extends JpaRepository<UserDevice, Long> {
 
     Optional<UserDevice> findByUserIdAndDeviceId(Long userId, String deviceId);
 
+    Optional<UserDevice> findByDeviceId(String deviceId);
+
     @Modifying
     @Query("UPDATE UserDevice d SET d.isOnline = false WHERE d.user.id = :userId")
     void setAllOfflineByUserId(Long userId);

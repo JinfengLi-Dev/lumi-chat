@@ -36,8 +36,8 @@ public class InternalServiceFilter extends OncePerRequestFilter {
 
         String requestPath = request.getRequestURI();
 
-        // Only process /internal/** endpoints
-        if (!requestPath.startsWith("/internal/")) {
+        // Only process internal service endpoints
+        if (!isInternalServicePath(requestPath)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -79,6 +79,22 @@ public class InternalServiceFilter extends OncePerRequestFilter {
             if (service.trim().equals(serviceName)) {
                 return true;
             }
+        }
+        return false;
+    }
+
+    /**
+     * Check if the request path is an internal service path that requires
+     * X-Internal-Service authentication.
+     */
+    private boolean isInternalServicePath(String requestPath) {
+        // Internal API endpoints
+        if (requestPath.startsWith("/internal/")) {
+            return true;
+        }
+        // Sync queue endpoint (called by IM server for offline message queueing)
+        if (requestPath.equals("/sync/queue")) {
+            return true;
         }
         return false;
     }

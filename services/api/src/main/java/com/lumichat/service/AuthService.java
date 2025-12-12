@@ -157,12 +157,24 @@ public class AuthService {
             deviceType = UserDevice.DeviceType.web;
         }
 
-        UserDevice device = userDeviceRepository.findByUserIdAndDeviceId(user.getId(), request.getDeviceId())
-                .orElse(UserDevice.builder()
-                        .user(user)
-                        .deviceId(request.getDeviceId())
-                        .deviceType(deviceType)
-                        .build());
+        // First check if device exists globally (could be registered to another user)
+        UserDevice device = userDeviceRepository.findByDeviceId(request.getDeviceId())
+                .orElse(null);
+
+        if (device != null) {
+            // Device exists - reassign to current user if different
+            if (!device.getUser().getId().equals(user.getId())) {
+                device.setUser(user);
+            }
+            device.setDeviceType(deviceType);
+        } else {
+            // Create new device
+            device = UserDevice.builder()
+                    .user(user)
+                    .deviceId(request.getDeviceId())
+                    .deviceType(deviceType)
+                    .build();
+        }
 
         device.setDeviceName(request.getDeviceName());
         device.setIsOnline(true);

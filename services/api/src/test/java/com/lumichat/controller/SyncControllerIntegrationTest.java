@@ -406,9 +406,9 @@ class SyncControllerIntegrationTest extends PostgresTestContainerConfig {
                     conversation.getId()
             );
 
-            // When/Then
+            // When/Then - Use internal service header (endpoint is for IM server)
             mockMvc.perform(post("/sync/queue")
-                            .header("Authorization", "Bearer " + user1Token)
+                            .header("X-Internal-Service", "im-server")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk())
@@ -433,9 +433,9 @@ class SyncControllerIntegrationTest extends PostgresTestContainerConfig {
                     conversation.getId()
             );
 
-            // When - Queue same message again
+            // When - Queue same message again (use internal service header)
             mockMvc.perform(post("/sync/queue")
-                            .header("Authorization", "Bearer " + user1Token)
+                            .header("X-Internal-Service", "im-server")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk());
