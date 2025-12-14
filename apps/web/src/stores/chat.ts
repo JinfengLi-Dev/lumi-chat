@@ -207,7 +207,10 @@ export const useChatStore = defineStore('chat', {
     },
 
     async forwardMessage(msgId: string, targetConversationIds: number[]) {
-      await messageApi.forwardMessage(msgId, targetConversationIds)
+      // Forward to each target conversation sequentially
+      for (const targetConversationId of targetConversationIds) {
+        await messageApi.forwardMessage(msgId, targetConversationId)
+      }
     },
 
     async deleteMessage(msgId: string) {

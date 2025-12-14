@@ -104,8 +104,8 @@ export const useFriendStore = defineStore('friend', {
       this.onlineStatus.set(userId, isOnline)
     },
 
-    async sendFriendRequest(userId: number, message?: string) {
-      await friendApi.sendFriendRequest(userId, message)
+    async sendFriendRequest(uid: string, message?: string) {
+      await friendApi.sendFriendRequest({ uid, message })
     },
 
     async acceptFriendRequest(requestId: number) {
@@ -133,7 +133,7 @@ export const useFriendStore = defineStore('friend', {
     },
 
     async setFriendRemark(friendId: number, remark: string) {
-      await friendApi.setFriendRemark(friendId, remark)
+      await friendApi.updateRemark(friendId, remark)
       const friend = this.friends.find((f) => f.id === friendId)
       if (friend) {
         friend.remark = remark

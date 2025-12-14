@@ -15,9 +15,8 @@ export const userApi = {
   async uploadAvatar(file: File): Promise<string> {
     const formData = new FormData()
     formData.append('file', file)
-    const response = await apiClient.post<ApiResponse<{ url: string }>>('/users/me/avatar', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    // Don't set Content-Type header - axios will set it automatically with correct boundary
+    const response = await apiClient.post<ApiResponse<{ url: string }>>('/users/me/avatar', formData)
     return response.data.data.url
   },
 

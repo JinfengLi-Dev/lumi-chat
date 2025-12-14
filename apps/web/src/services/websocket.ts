@@ -286,7 +286,7 @@ class WebSocketService {
           break
 
         case ProtocolType.CHAT_MESSAGE_ACK:
-          this.handleMessageAck(packet.data as { msgId: string; serverTimestamp: number; success: boolean })
+          this.handleMessageAck(packet.data as { clientMsgId: string; msgId: string; serverTimestamp: number; success: boolean })
           break
 
         case ProtocolType.TYPING_NOTIFY:

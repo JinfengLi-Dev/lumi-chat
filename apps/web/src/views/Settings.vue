@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { authApi } from '@/api/auth'
 import DeviceManagement from '@/components/settings/DeviceManagement.vue'
@@ -95,9 +95,9 @@ async function handleChangePassword() {
   }
 }
 
-async function handleUploadAvatar(file: any) {
+async function handleUploadAvatar(file: File) {
   try {
-    await userStore.updateAvatar(file.raw)
+    await userStore.updateAvatar(file)
     ElMessage.success('Avatar updated successfully')
   } catch (error: any) {
     ElMessage.error(error.message || 'Failed to upload avatar')
