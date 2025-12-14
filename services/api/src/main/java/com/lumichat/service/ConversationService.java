@@ -277,9 +277,9 @@ public class ConversationService {
             }
         }
 
-        // Get last message
-        var messages = messageRepository.findByConversationIdOrderByServerCreatedAtDesc(
-                c.getId(), PageRequest.of(0, 1));
+        // Get last message (filtered by clearedAt so cleared chats show empty)
+        var messages = messageRepository.findByConversationIdAfterClearedAt(
+                c.getId(), uc.getClearedAt(), PageRequest.of(0, 1));
         if (messages.hasContent()) {
             lastMessage = MessageResponse.fromWithSender(messages.getContent().get(0));
         }
