@@ -1,6 +1,7 @@
 package com.lumichat.controller;
 
 import com.lumichat.dto.request.SendFriendRequestRequest;
+import com.lumichat.dto.request.UpdateMemoRequest;
 import com.lumichat.dto.request.UpdateRemarkRequest;
 import com.lumichat.dto.response.ApiResponse;
 import com.lumichat.dto.response.FriendRequestResponse;
@@ -109,6 +110,19 @@ public class FriendController {
             @PathVariable Long id,
             @Valid @RequestBody UpdateRemarkRequest request) {
         friendService.updateRemark(principal.getId(), id, request.getRemark());
+        return ApiResponse.success();
+    }
+
+    /**
+     * Update friend memo
+     * PUT /friends/{id}/memo
+     */
+    @PutMapping("/{id}/memo")
+    public ApiResponse<Void> updateMemo(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateMemoRequest request) {
+        friendService.updateMemo(principal.getId(), id, request.getMemo());
         return ApiResponse.success();
     }
 

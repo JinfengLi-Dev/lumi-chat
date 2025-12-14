@@ -49,4 +49,8 @@ export const conversationApi = {
   async clearMessages(id: number): Promise<void> {
     await apiClient.delete(`/conversations/${id}/messages`)
   },
+
+  async updateBackground(id: number, backgroundUrl: string | null): Promise<void> {
+    await apiClient.put(`/conversations/${id}/background`, { backgroundUrl })
+  },
 }

@@ -55,6 +55,10 @@ public class UserConversation {
     // Timestamp when user cleared messages; only show messages after this time
     private LocalDateTime clearedAt;
 
+    // Custom background image URL for this conversation
+    @Column(name = "background_url", length = 500)
+    private String backgroundUrl;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

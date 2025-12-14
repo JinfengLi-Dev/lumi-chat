@@ -211,6 +211,18 @@ public class FriendService {
     }
 
     /**
+     * Update friend memo
+     */
+    @Transactional
+    public void updateMemo(Long userId, Long friendId, String memo) {
+        int updated = friendshipRepository.updateMemo(userId, friendId, memo);
+        if (updated == 0) {
+            throw new NotFoundException("Friendship not found");
+        }
+        log.info("Memo updated for friend {} by user {}", friendId, userId);
+    }
+
+    /**
      * Block a friend
      */
     @Transactional

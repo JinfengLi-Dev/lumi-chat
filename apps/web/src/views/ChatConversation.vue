@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useChatStore } from '@/stores/chat'
+import { useFriendStore } from '@/stores/friend'
 import { useUserStore } from '@/stores/user'
 import { useWebSocketStore } from '@/stores/websocket'
 import { useDebounceFn } from '@vueuse/core'
-import { fileApi } from '@/api'
+import { fileApi, friendApi, messageApi, conversationApi } from '@/api'
 import type { UploadProgress } from '@/api/file'
 import type { Message, User, Group } from '@/types'
 import MessageContextMenu from '@/components/chat/MessageContextMenu.vue'
@@ -24,6 +25,7 @@ import MessageStatus from '@/components/chat/MessageStatus.vue'
 
 const route = useRoute()
 const chatStore = useChatStore()
+const friendStore = useFriendStore()
 const userStore = useUserStore()
 const wsStore = useWebSocketStore()
 
@@ -67,6 +69,23 @@ const availableFriends = ref<User[]>([])
 // Group card picker state
 const showGroupCardPicker = ref(false)
 const availableGroups = ref<Group[]>([])
+
+// Remark and memo editing state
+const isEditingRemark = ref(false)
+const editingRemark = ref('')
+const editingMemo = ref('')
+const isSavingRemark = ref(false)
+const isSavingMemo = ref(false)
+
+// Search state
+const searchQuery = ref('')
+const searchResults = ref<Message[]>([])
+const isSearching = ref(false)
+const showSearchResults = ref(false)
+
+// Background state
+const backgroundInputRef = ref<HTMLInputElement>()
+const isUploadingBackground = ref(false)
 
 // Typing indicator - connected to WebSocket store
 const typingUsers = computed(() =>
@@ -441,6 +460,185 @@ function sendReadReceipt() {
   wsStore.sendReadAck(conversationId.value, lastMessage.id)
 }
 
+// Get friend data for the current conversation (if it's a private chat with a friend)
+const currentFriend = computed(() => {
+  if (!conversation.value || conversation.value.type !== 'private_chat') return null
+  if (!conversation.value.targetUser) return null
+  return friendStore.friends.find((f) => f.id === conversation.value?.targetUser?.id) || null
+})
+
+// Initialize remark and memo when conversation changes
+watch(currentFriend, (friend) => {
+  if (friend) {
+    editingRemark.value = friend.remark || ''
+    editingMemo.value = friend.memo || ''
+  } else {
+    editingRemark.value = ''
+    editingMemo.value = ''
+  }
+}, { immediate: true })
+
+// Start editing remark
+function startEditingRemark() {
+  editingRemark.value = currentFriend.value?.remark || ''
+  isEditingRemark.value = true
+}
+
+// Cancel editing remark
+function cancelEditingRemark() {
+  editingRemark.value = currentFriend.value?.remark || ''
+  isEditingRemark.value = false
+}
+
+// Save remark
+async function saveRemark() {
+  if (!currentFriend.value) return
+  isSavingRemark.value = true
+  try {
+    await friendApi.updateRemark(currentFriend.value.id, editingRemark.value)
+    // Update local friend data
+    await friendStore.fetchFriends()
+    isEditingRemark.value = false
+    ElMessage.success('Remark updated')
+  } catch {
+    ElMessage.error('Failed to update remark')
+  } finally {
+    isSavingRemark.value = false
+  }
+}
+
+// Save memo (auto-save on blur)
+async function saveMemo() {
+  if (!currentFriend.value) return
+  if (editingMemo.value === (currentFriend.value.memo || '')) return
+  isSavingMemo.value = true
+  try {
+    await friendApi.updateMemo(currentFriend.value.id, editingMemo.value)
+    // Update local friend data
+    await friendStore.fetchFriends()
+    ElMessage.success('Memo saved')
+  } catch {
+    ElMessage.error('Failed to save memo')
+  } finally {
+    isSavingMemo.value = false
+  }
+}
+
+// Search messages in conversation
+async function handleSearch() {
+  if (!conversationId.value || !searchQuery.value.trim()) {
+    searchResults.value = []
+    showSearchResults.value = false
+    return
+  }
+
+  isSearching.value = true
+  try {
+    const results = await messageApi.searchMessages(conversationId.value, searchQuery.value.trim())
+    searchResults.value = results
+    showSearchResults.value = true
+  } catch {
+    ElMessage.error('Failed to search messages')
+  } finally {
+    isSearching.value = false
+  }
+}
+
+// Clear search
+function clearSearch() {
+  searchQuery.value = ''
+  searchResults.value = []
+  showSearchResults.value = false
+}
+
+// Scroll to a specific message
+function scrollToMessage(msgId: string) {
+  const messageElement = document.querySelector(`[data-msg-id="${msgId}"]`)
+  if (messageElement) {
+    messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // Highlight the message briefly
+    messageElement.classList.add('highlight')
+    setTimeout(() => {
+      messageElement.classList.remove('highlight')
+    }, 2000)
+  }
+  showSearchResults.value = false
+}
+
+// Background handlers
+function triggerBackgroundUpload() {
+  backgroundInputRef.value?.click()
+}
+
+async function handleBackgroundSelect(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file || !conversationId.value) return
+
+  if (!file.type.startsWith('image/')) {
+    ElMessage.error('Please select an image file')
+    return
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.error('Image size must be less than 5MB')
+    return
+  }
+
+  isUploadingBackground.value = true
+  try {
+    // Upload to file storage
+    const fileInfo = await fileApi.uploadFile(file, 'image')
+    // Update conversation background
+    await conversationApi.updateBackground(conversationId.value, fileInfo.url)
+    // Refresh conversations to get updated data
+    await chatStore.fetchConversations()
+    ElMessage.success('Background updated')
+  } catch {
+    ElMessage.error('Failed to update background')
+  } finally {
+    isUploadingBackground.value = false
+    if (backgroundInputRef.value) {
+      backgroundInputRef.value.value = ''
+    }
+  }
+}
+
+async function removeBackground() {
+  if (!conversationId.value) return
+  try {
+    await conversationApi.updateBackground(conversationId.value, null)
+    await chatStore.fetchConversations()
+    ElMessage.success('Background removed')
+  } catch {
+    ElMessage.error('Failed to remove background')
+  }
+}
+
+// Clear chat history with confirmation
+async function handleClearChatHistory() {
+  if (!conversationId.value) return
+
+  try {
+    await ElMessageBox.confirm(
+      'This will clear all messages in this conversation. This action cannot be undone.',
+      'Clear Chat History',
+      {
+        confirmButtonText: 'Clear',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+      }
+    )
+
+    await chatStore.clearChatHistory(conversationId.value)
+    ElMessage.success('Chat history cleared')
+  } catch (error) {
+    // User cancelled or error occurred
+    if (error !== 'cancel') {
+      ElMessage.error('Failed to clear chat history')
+    }
+  }
+}
+
 onMounted(() => {
   scrollToBottom()
 })
@@ -473,7 +671,12 @@ onUnmounted(() => {
     </div>
 
     <!-- Messages -->
-    <div ref="messageListRef" class="chat-area-messages" @scroll="loadMoreMessages">
+    <div
+      ref="messageListRef"
+      class="chat-area-messages"
+      :style="conversation.backgroundUrl ? { backgroundImage: `url(${conversation.backgroundUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}"
+      @scroll="loadMoreMessages"
+    >
       <div v-if="loading && messages.length === 0" class="flex-center" style="height: 100%">
         <el-icon class="is-loading" :size="24"><Loading /></el-icon>
       </div>
@@ -487,6 +690,7 @@ onUnmounted(() => {
       <div
         v-for="msg in messages"
         :key="msg.msgId"
+        :data-msg-id="msg.msgId"
         class="message"
         :class="{ self: isSelf(msg.senderId), other: !isSelf(msg.senderId) }"
         @contextmenu="handleContextMenu($event, msg)"
@@ -722,6 +926,135 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <!-- Remark (Tag) Section - Only for private chats with friends -->
+      <div v-if="currentFriend" class="info-panel-section">
+        <div class="section-title">Remark/Tag</div>
+        <div v-if="!isEditingRemark" class="remark-display">
+          <span class="remark-text">{{ currentFriend.remark || 'No remark' }}</span>
+          <el-button type="primary" link size="small" @click="startEditingRemark">
+            <el-icon><Edit /></el-icon>
+          </el-button>
+        </div>
+        <div v-else class="remark-edit">
+          <el-input
+            v-model="editingRemark"
+            size="small"
+            placeholder="Enter remark"
+            maxlength="50"
+            show-word-limit
+            style="flex: 1"
+          />
+          <el-button
+            type="primary"
+            size="small"
+            :loading="isSavingRemark"
+            @click="saveRemark"
+          >
+            Save
+          </el-button>
+          <el-button size="small" @click="cancelEditingRemark">Cancel</el-button>
+        </div>
+      </div>
+
+      <!-- Memo Section - Only for private chats with friends -->
+      <div v-if="currentFriend" class="info-panel-section">
+        <div class="section-title">Memo</div>
+        <el-input
+          v-model="editingMemo"
+          type="textarea"
+          :rows="4"
+          placeholder="Add notes about this contact..."
+          maxlength="2000"
+          show-word-limit
+          @blur="saveMemo"
+          :disabled="isSavingMemo"
+        />
+        <p v-if="isSavingMemo" style="font-size: 12px; color: #909399; margin-top: 5px">
+          Saving...
+        </p>
+      </div>
+
+      <!-- Search Chat History Section -->
+      <div class="info-panel-section">
+        <div class="section-title">Search Chat History</div>
+        <div class="search-box">
+          <el-input
+            v-model="searchQuery"
+            size="small"
+            placeholder="Search messages..."
+            clearable
+            @keyup.enter="handleSearch"
+            @clear="clearSearch"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+          <el-button
+            type="primary"
+            size="small"
+            :loading="isSearching"
+            @click="handleSearch"
+            style="margin-left: 8px"
+          >
+            Search
+          </el-button>
+        </div>
+        <div v-if="showSearchResults" class="search-results">
+          <div v-if="searchResults.length === 0" class="no-results">
+            No messages found
+          </div>
+          <div
+            v-for="result in searchResults"
+            :key="result.msgId"
+            class="search-result-item"
+            @click="scrollToMessage(result.msgId)"
+          >
+            <div class="result-sender">{{ result.sender?.nickname || 'Unknown' }}</div>
+            <div class="result-content">{{ result.content }}</div>
+            <div class="result-time">{{ formatTime(result.serverCreatedAt) }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Background Section -->
+      <div class="info-panel-section">
+        <div class="section-title">Chat Background</div>
+        <input
+          ref="backgroundInputRef"
+          type="file"
+          accept="image/*"
+          hidden
+          @change="handleBackgroundSelect"
+        />
+        <div class="background-preview">
+          <div
+            v-if="conversation.backgroundUrl"
+            class="background-image"
+            :style="{ backgroundImage: `url(${conversation.backgroundUrl})` }"
+          ></div>
+          <div v-else class="no-background">No background set</div>
+        </div>
+        <div class="background-actions">
+          <el-button
+            size="small"
+            :loading="isUploadingBackground"
+            @click="triggerBackgroundUpload"
+          >
+            {{ conversation.backgroundUrl ? 'Change' : 'Set Background' }}
+          </el-button>
+          <el-button
+            v-if="conversation.backgroundUrl"
+            size="small"
+            type="danger"
+            plain
+            @click="removeBackground"
+          >
+            Remove
+          </el-button>
+        </div>
+      </div>
+
       <div v-if="conversation.group" class="info-panel-section">
         <div class="section-title">Announcement</div>
         <p style="color: #606266; font-size: 13px">
@@ -735,6 +1068,19 @@ onUnmounted(() => {
           <el-button size="small">Manage Members</el-button>
           <el-button size="small">Invite</el-button>
         </div>
+      </div>
+
+      <!-- Actions Section -->
+      <div class="info-panel-section" style="border-top: 1px solid #ebeef5; padding-top: 15px; margin-top: 10px">
+        <el-button
+          type="danger"
+          plain
+          size="small"
+          style="width: 100%"
+          @click="handleClearChatHistory"
+        >
+          Clear Chat History
+        </el-button>
       </div>
     </div>
   </div>
@@ -789,3 +1135,140 @@ onUnmounted(() => {
     @select="handleGroupCardSelect"
   />
 </template>
+
+<style scoped>
+.remark-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.remark-text {
+  color: #606266;
+  font-size: 13px;
+}
+
+.remark-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #303133;
+  margin-bottom: 8px;
+}
+
+.info-panel-section {
+  padding: 12px 15px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.info-panel-section:last-child {
+  border-bottom: none;
+}
+
+/* Search styles */
+.search-box {
+  display: flex;
+  align-items: center;
+}
+
+.search-results {
+  margin-top: 10px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.no-results {
+  text-align: center;
+  color: #909399;
+  font-size: 13px;
+  padding: 15px;
+}
+
+.search-result-item {
+  padding: 8px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.search-result-item:hover {
+  background-color: #f5f7fa;
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+}
+
+.result-sender {
+  font-size: 12px;
+  font-weight: 500;
+  color: #303133;
+}
+
+.result-content {
+  font-size: 13px;
+  color: #606266;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.result-time {
+  font-size: 11px;
+  color: #909399;
+  margin-top: 2px;
+}
+
+/* Message highlight animation */
+:deep(.message.highlight) {
+  animation: highlightMessage 2s ease-out;
+}
+
+@keyframes highlightMessage {
+  0%, 50% {
+    background-color: rgba(64, 158, 255, 0.2);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+/* Background section styles */
+.background-preview {
+  width: 100%;
+  height: 80px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  border: 1px solid #e4e7ed;
+}
+
+.background-image {
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+}
+
+.no-background {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #909399;
+  font-size: 13px;
+  background-color: #f5f7fa;
+}
+
+.background-actions {
+  display: flex;
+  gap: 8px;
+}
+</style>

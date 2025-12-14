@@ -43,6 +43,20 @@ export const messageApi = {
     await apiClient.delete(`/messages/${msgId}`)
   },
 
+  /**
+   * Search messages in a conversation
+   * GET /conversations/{id}/messages/search?q=xxx
+   */
+  async searchMessages(conversationId: number, query: string, page = 0, limit = 20): Promise<Message[]> {
+    const response = await apiClient.get<ApiResponse<Message[]>>(
+      `/conversations/${conversationId}/messages/search`,
+      {
+        params: { q: query, page, limit },
+      }
+    )
+    return response.data.data
+  },
+
   async uploadFile(file: File, onProgress?: (percent: number) => void): Promise<{ fileId: string; url: string }> {
     const formData = new FormData()
     formData.append('file', file)

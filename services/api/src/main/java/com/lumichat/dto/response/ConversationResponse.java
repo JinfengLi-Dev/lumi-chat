@@ -23,6 +23,7 @@ public class ConversationResponse {
     private Boolean isPinned;
     private String draft;
     private Long[] atMsgIds;
+    private String backgroundUrl;
 
     public static ConversationResponse from(UserConversation uc, UserResponse targetUser, MessageResponse lastMessage) {
         Conversation c = uc.getConversation();
@@ -38,6 +39,7 @@ public class ConversationResponse {
                 .isPinned(uc.getIsPinned())
                 .draft(uc.getDraft())
                 .atMsgIds(uc.getAtMsgIds())
+                .backgroundUrl(uc.getBackgroundUrl())
                 .build();
     }
 }

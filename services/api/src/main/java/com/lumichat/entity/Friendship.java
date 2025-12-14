@@ -32,6 +32,9 @@ public class Friendship {
     @Column(length = 50)
     private String remark;
 
+    @Column(columnDefinition = "TEXT")
+    private String memo;
+
     @Column(length = 20)
     @Builder.Default
     private String status = "active";

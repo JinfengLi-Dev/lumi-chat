@@ -77,6 +77,14 @@ export const friendApi = {
   },
 
   /**
+   * Update friend memo/notes
+   * PUT /friends/{id}/memo
+   */
+  async updateMemo(friendId: number, memo: string): Promise<void> {
+    await apiClient.put(`/friends/${friendId}/memo`, { memo })
+  },
+
+  /**
    * Block a friend
    * POST /friends/{id}/block
    */

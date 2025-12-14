@@ -51,6 +51,7 @@ export interface RegisterRequest {
 // Friend types
 export interface Friend extends User {
   remark?: string
+  memo?: string
   friendshipCreatedAt: string
 }
 
@@ -108,6 +109,7 @@ export interface Conversation {
   isPinned: boolean
   atMsgIds?: number[]
   draft?: string
+  backgroundUrl?: string
 }
 
 // Message types

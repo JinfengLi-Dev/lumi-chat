@@ -36,6 +36,22 @@ public class MessageController {
     }
 
     /**
+     * Search messages in a conversation
+     * GET /conversations/{conversationId}/messages/search?q=xxx
+     */
+    @GetMapping("/conversations/{conversationId}/messages/search")
+    public ApiResponse<List<MessageResponse>> searchMessages(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long conversationId,
+            @RequestParam("q") String query,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int limit) {
+        List<MessageResponse> messages = messageService.searchMessages(
+                principal.getId(), conversationId, query, page, Math.min(limit, 100));
+        return ApiResponse.success(messages);
+    }
+
+    /**
      * Send a message
      * POST /messages
      */

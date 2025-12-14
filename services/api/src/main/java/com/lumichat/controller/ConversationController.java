@@ -143,9 +143,23 @@ public class ConversationController {
         return ApiResponse.success();
     }
 
+    /**
+     * Update chat background
+     * PUT /conversations/{id}/background
+     */
+    @PutMapping("/{id}/background")
+    public ApiResponse<Void> updateBackground(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long id,
+            @RequestBody BackgroundRequest request) {
+        conversationService.updateBackground(principal.getId(), id, request.backgroundUrl());
+        return ApiResponse.success();
+    }
+
     // Inner classes for simple request bodies
     public record CreatePrivateConversationRequest(Long targetUserId) {}
     public record MuteRequest(boolean muted) {}
     public record PinRequest(boolean pinned) {}
     public record DraftRequest(String draft) {}
+    public record BackgroundRequest(String backgroundUrl) {}
 }

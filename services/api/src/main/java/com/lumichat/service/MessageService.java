@@ -6,6 +6,7 @@ import com.lumichat.dto.response.MessageResponse;
 import com.lumichat.entity.Conversation;
 import com.lumichat.entity.Message;
 import com.lumichat.entity.User;
+import com.lumichat.entity.UserConversation;
 import com.lumichat.repository.ConversationRepository;
 import com.lumichat.repository.MessageRepository;
 import com.lumichat.repository.UserConversationRepository;
@@ -41,18 +42,22 @@ public class MessageService {
 
     /**
      * Get messages for a conversation with pagination
+     * Filters by clearedAt timestamp to support clear chat history feature
      */
     public List<MessageResponse> getMessages(Long userId, Long conversationId, Long beforeId, int limit) {
-        // Verify user has access to conversation
-        userConversationRepository.findByUserIdAndConversationId(userId, conversationId)
+        // Get user's conversation settings including clearedAt timestamp
+        UserConversation uc = userConversationRepository.findByUserIdAndConversationId(userId, conversationId)
                 .orElseThrow(() -> new RuntimeException("Conversation not found"));
+
+        LocalDateTime clearedAt = uc.getClearedAt();
 
         Page<Message> messages;
         if (beforeId != null) {
-            messages = messageRepository.findBeforeId(conversationId, beforeId, PageRequest.of(0, limit));
+            messages = messageRepository.findBeforeIdAfterClearedAt(
+                    conversationId, beforeId, clearedAt, PageRequest.of(0, limit));
         } else {
-            messages = messageRepository.findByConversationIdOrderByServerCreatedAtDesc(
-                    conversationId, PageRequest.of(0, limit));
+            messages = messageRepository.findByConversationIdAfterClearedAt(
+                    conversationId, clearedAt, PageRequest.of(0, limit));
         }
 
         return messages.getContent().stream()
@@ -200,6 +205,27 @@ public class MessageService {
                 userId, msgId, targetConversationId);
 
         return MessageResponse.fromWithSender(message);
+    }
+
+    /**
+     * Search messages in a conversation
+     * Filters by clearedAt timestamp to support clear chat history feature
+     */
+    public List<MessageResponse> searchMessages(Long userId, Long conversationId, String query, int page, int limit) {
+        // Get user's conversation settings including clearedAt timestamp
+        UserConversation uc = userConversationRepository.findByUserIdAndConversationId(userId, conversationId)
+                .orElseThrow(() -> new RuntimeException("Conversation not found"));
+
+        if (query == null || query.trim().isEmpty()) {
+            return List.of();
+        }
+
+        Page<Message> messages = messageRepository.searchMessagesAfterClearedAt(
+                conversationId, query.trim(), uc.getClearedAt(), PageRequest.of(page, limit));
+
+        return messages.getContent().stream()
+                .map(MessageResponse::fromWithSender)
+                .toList();
     }
 
     /**

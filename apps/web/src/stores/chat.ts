@@ -117,16 +117,17 @@ export const useChatStore = defineStore('chat', {
     async fetchMessages(conversationId: number, beforeMsgId?: number) {
       this.loadingMessages = true
       try {
-        const response = await messageApi.getMessages(conversationId, beforeMsgId)
+        const messages = await messageApi.getMessages(conversationId, beforeMsgId)
         const existing = this.messages.get(conversationId) || []
 
         if (beforeMsgId) {
-          this.messages.set(conversationId, [...response.items, ...existing])
+          this.messages.set(conversationId, [...messages, ...existing])
         } else {
-          this.messages.set(conversationId, response.items)
+          this.messages.set(conversationId, messages)
         }
 
-        this.hasMoreMessages.set(conversationId, response.hasMore)
+        // API returns array directly; hasMore = true if we got full limit
+        this.hasMoreMessages.set(conversationId, messages.length >= 50)
       } finally {
         this.loadingMessages = false
       }
@@ -365,6 +366,16 @@ export const useChatStore = defineStore('chat', {
 
     clearMessages(conversationId: number) {
       this.messages.delete(conversationId)
+    },
+
+    async clearChatHistory(conversationId: number) {
+      await conversationApi.clearMessages(conversationId)
+      this.messages.set(conversationId, [])
+      // Update last message in conversation list
+      const conv = this.conversations.find((c: Conversation) => c.id === conversationId)
+      if (conv) {
+        conv.lastMessage = undefined
+      }
     },
 
     reset() {

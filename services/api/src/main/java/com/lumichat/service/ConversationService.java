@@ -124,6 +124,18 @@ public class ConversationService {
     }
 
     /**
+     * Update chat background for a conversation
+     */
+    @Transactional
+    public void updateBackground(Long userId, Long conversationId, String backgroundUrl) {
+        UserConversation uc = userConversationRepository.findByUserIdAndConversationId(userId, conversationId)
+                .orElseThrow(() -> new RuntimeException("Conversation not found"));
+        uc.setBackgroundUrl(backgroundUrl);
+        userConversationRepository.save(uc);
+        log.info("User {} updated background for conversation {}", userId, conversationId);
+    }
+
+    /**
      * Create or get private conversation between two users
      */
     @Transactional

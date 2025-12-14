@@ -14,6 +14,7 @@ public class FriendResponse {
     private String nickname;
     private String avatar;
     private String remark;
+    private String memo;
     private String signature;
     private String gender;
     private String status;
@@ -27,6 +28,7 @@ public class FriendResponse {
                 .nickname(friend.getNickname())
                 .avatar(friend.getAvatar())
                 .remark(friendship.getRemark())
+                .memo(friendship.getMemo())
                 .signature(friend.getSignature())
                 .gender(friend.getGender() != null ? friend.getGender().name() : null)
                 .status(friendship.getStatus())

@@ -31,6 +31,10 @@ public interface FriendshipRepository extends JpaRepository<Friendship, Long> {
     int updateRemark(@Param("userId") Long userId, @Param("friendId") Long friendId, @Param("remark") String remark);
 
     @Modifying
+    @Query("UPDATE Friendship f SET f.memo = :memo WHERE f.user.id = :userId AND f.friend.id = :friendId")
+    int updateMemo(@Param("userId") Long userId, @Param("friendId") Long friendId, @Param("memo") String memo);
+
+    @Modifying
     @Query("UPDATE Friendship f SET f.status = :status WHERE f.user.id = :userId AND f.friend.id = :friendId")
     int updateStatus(@Param("userId") Long userId, @Param("friendId") Long friendId, @Param("status") String status);
 
