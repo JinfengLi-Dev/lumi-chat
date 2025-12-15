@@ -56,4 +56,10 @@ public class FileEntity {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
+
+    @Column(name = "file_type", length = 20)
+    private String fileType;
 }

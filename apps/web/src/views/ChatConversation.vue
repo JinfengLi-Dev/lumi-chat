@@ -22,6 +22,7 @@ import GroupCardMessage from '@/components/chat/GroupCardMessage.vue'
 import GroupCardPicker from '@/components/chat/GroupCardPicker.vue'
 import TypingIndicator from '@/components/chat/TypingIndicator.vue'
 import MessageStatus from '@/components/chat/MessageStatus.vue'
+import FileMessage from '@/components/chat/FileMessage.vue'
 
 const route = useRoute()
 const chatStore = useChatStore()
@@ -329,10 +330,13 @@ async function uploadAndSendFile(file: File, type: 'image' | 'file') {
 
     // Prepare message metadata
     const metadata = {
-      fileName: file.name,
-      fileSize: file.size,
+      fileName: fileInfo.fileName || file.name,
+      fileSize: fileInfo.fileSize || file.size,
       fileType: file.type,
       fileUrl: fileInfo.url,
+      fileId: fileInfo.fileId,
+      mimeType: fileInfo.mimeType,
+      expiresAt: fileInfo.expiresAt,
       ...(type === 'image' && fileInfo.width && {
         width: fileInfo.width,
         height: fileInfo.height,
@@ -378,6 +382,13 @@ function openLightbox(imageUrl: string) {
     lightboxIndex.value = 0
   }
   lightboxVisible.value = true
+}
+
+// File retry handler
+function handleRetryFileUpload(_message: Message) {
+  // For retry, we would need to have stored the original file
+  // Since we don't have it, we show a message to the user
+  ElMessage.info('Please re-send the file by selecting it again')
 }
 
 // Location picker handler
@@ -742,16 +753,11 @@ onUnmounted(() => {
           </div>
 
           <!-- File message -->
-          <div v-else-if="msg.msgType === 'file'" class="content">
-            <div style="display: flex; align-items: center; gap: 10px">
-              <el-icon :size="32"><Document /></el-icon>
-              <div>
-                <div>{{ msg.metadata?.fileName || 'File' }}</div>
-                <div style="font-size: 12px; color: #909399">
-                  {{ ((msg.metadata?.fileSize || 0) / 1024).toFixed(1) }} KB
-                </div>
-              </div>
-            </div>
+          <div v-else-if="msg.msgType === 'file'" class="content file-content">
+            <FileMessage
+              :message="msg"
+              @retry="handleRetryFileUpload"
+            />
           </div>
 
           <!-- Location message -->

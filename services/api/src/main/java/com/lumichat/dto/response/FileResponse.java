@@ -20,6 +20,8 @@ public class FileResponse {
     private Integer height;
     private Integer duration;
     private LocalDateTime createdAt;
+    private LocalDateTime expiresAt;
+    private String fileType;
 
     public static FileResponse from(FileEntity file, String baseUrl) {
         return FileResponse.builder()
@@ -36,6 +38,8 @@ public class FileResponse {
                 .height(file.getHeight())
                 .duration(file.getDuration())
                 .createdAt(file.getCreatedAt())
+                .expiresAt(file.getExpiresAt())
+                .fileType(file.getFileType())
                 .build();
     }
 }

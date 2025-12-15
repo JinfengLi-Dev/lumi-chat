@@ -7,8 +7,12 @@ import {
   Promotion,
   Delete,
   ChatLineSquare,
+  FolderOpened,
+  Download,
+  Link,
 } from '@element-plus/icons-vue'
 import type { Message } from '@/types'
+import { fileApi } from '@/api/file'
 
 const props = defineProps<{
   visible: boolean
@@ -47,6 +51,22 @@ const canRecall = computed(() => {
 
 const isRecalled = computed(() => {
   return props.message?.recalledAt != null
+})
+
+const isFileMessage = computed(() => {
+  return props.message?.msgType === 'file'
+})
+
+const fileId = computed(() => {
+  if (!props.message) return null
+  // Get fileId from metadata or extract from URL
+  if (props.message.metadata?.fileId) return props.message.metadata.fileId
+  const match = props.message.content?.match(/\/files\/([^/]+)/)
+  return match ? match[1] : null
+})
+
+const fileName = computed(() => {
+  return props.message?.metadata?.fileName || 'file'
 })
 
 function handleClickOutside(e: MouseEvent) {
@@ -136,6 +156,30 @@ function handleQuote() {
   emit('update:visible', false)
 }
 
+// File-specific actions
+function handleOpenFile() {
+  if (!fileId.value) return
+  fileApi.openFile(fileId.value)
+  emit('update:visible', false)
+}
+
+function handleDownloadFile() {
+  if (!fileId.value) return
+  fileApi.downloadFile(fileId.value, fileName.value)
+  emit('update:visible', false)
+}
+
+function handleCopyFileLink() {
+  if (!fileId.value) return
+  const url = fileApi.getFileUrl(fileId.value)
+  navigator.clipboard.writeText(url).then(() => {
+    ElMessage.success('File link copied to clipboard')
+  }).catch(() => {
+    ElMessage.error('Failed to copy link')
+  })
+  emit('update:visible', false)
+}
+
 watch(() => props.visible, (visible) => {
   if (visible) {
     document.addEventListener('click', handleClickOutside)
@@ -160,6 +204,26 @@ onUnmounted(() => {
       class="context-menu"
       :style="menuStyle"
     >
+      <!-- File-specific actions -->
+      <template v-if="isFileMessage && fileId">
+        <div class="context-menu-item" @click="handleOpenFile">
+          <el-icon><FolderOpened /></el-icon>
+          <span>Open</span>
+        </div>
+
+        <div class="context-menu-item" @click="handleDownloadFile">
+          <el-icon><Download /></el-icon>
+          <span>Save</span>
+        </div>
+
+        <div class="context-menu-item" @click="handleCopyFileLink">
+          <el-icon><Link /></el-icon>
+          <span>Copy Link</span>
+        </div>
+
+        <div class="context-menu-divider"></div>
+      </template>
+
       <div class="context-menu-item" @click="handleCopy">
         <el-icon><CopyDocument /></el-icon>
         <span>Copy</span>

@@ -15,6 +15,8 @@ export interface FileInfo {
   height?: number
   duration?: number
   createdAt: string
+  expiresAt?: string
+  fileType?: string
 }
 
 export interface UploadProgress {
@@ -124,6 +126,35 @@ export const fileApi = {
    */
   async deleteFile(fileId: string): Promise<void> {
     await apiClient.delete(`/files/${fileId}`)
+  },
+
+  /**
+   * Download file programmatically
+   * Triggers browser download with original filename
+   */
+  downloadFile(fileId: string, fileName?: string): void {
+    const link = document.createElement('a')
+    link.href = this.getDownloadUrl(fileId)
+    link.download = fileName || ''
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  },
+
+  /**
+   * Save file as - allows user to choose destination
+   * Uses the download attribute with the specified filename
+   */
+  saveFileAs(fileId: string, fileName: string): void {
+    this.downloadFile(fileId, fileName)
+  },
+
+  /**
+   * Open file in new tab/window
+   * Browser will handle based on file type
+   */
+  openFile(fileId: string): void {
+    window.open(this.getFileUrl(fileId), '_blank')
   },
 
   /**

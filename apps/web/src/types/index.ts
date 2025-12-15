@@ -155,6 +155,9 @@ export interface MessageMetadata {
   fileSize?: number
   fileType?: string
   fileUrl?: string
+  fileId?: string
+  mimeType?: string
+  expiresAt?: string
 
   // Voice/Video
   duration?: number

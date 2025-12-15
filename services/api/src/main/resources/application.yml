@@ -2,8 +2,13 @@ spring:
   application:
     name: lumi-chat-api
 
+  task:
+    scheduling:
+      pool:
+        size: 2
+
   datasource:
-    url: jdbc:postgresql://localhost:5433/lumichat
+    url: jdbc:postgresql://localhost:10432/lumichat
     username: lumichat
     password: lumichat_dev
     driver-class-name: org.postgresql.Driver
@@ -25,11 +30,11 @@ spring:
   data:
     redis:
       host: localhost
-      port: 6380
+      port: 10379
       database: 0
 
 server:
-  port: 8080
+  port: 10080
   servlet:
     context-path: /api/v1
 
@@ -40,7 +45,7 @@ app:
     refresh-token-expiration: 604800000 # 7 days
 
   minio:
-    endpoint: http://localhost:9002
+    endpoint: http://localhost:10900
     access-key: minioadmin
     secret-key: minioadmin
     bucket-avatars: avatars
@@ -51,7 +56,7 @@ app:
     bucket-thumbnails: thumbnails
 
   cors:
-    allowed-origins: http://localhost:5173,http://localhost:3000
+    allowed-origins: http://localhost:5173,http://localhost:3000,http://localhost:10000
 
   internal:
     allowed-services: im-server

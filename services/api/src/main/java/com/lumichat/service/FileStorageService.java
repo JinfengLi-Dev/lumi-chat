@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -79,6 +80,8 @@ public class FileStorageService {
                     .bucket(bucket)
                     .path(storagePath)
                     .mimeType(file.getContentType())
+                    .fileType(fileType)
+                    .expiresAt(calculateExpiration(fileType))
                     .build();
 
             fileEntity = fileRepository.save(fileEntity);
@@ -225,5 +228,16 @@ public class FileStorageService {
         // Return relative URL - frontend proxy handles routing to backend
         // This ensures URLs work from any host (localhost, production, other users)
         return contextPath;
+    }
+
+    /**
+     * Calculate expiration date based on file type.
+     * Avatars and images don't expire, other files expire after 30 days.
+     */
+    private LocalDateTime calculateExpiration(String fileType) {
+        return switch (fileType.toLowerCase()) {
+            case "avatar", "image", "thumbnail" -> null;  // Don't expire
+            default -> LocalDateTime.now().plusDays(30);  // 30-day retention
+        };
     }
 }

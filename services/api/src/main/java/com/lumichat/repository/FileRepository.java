@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,4 +22,7 @@ public interface FileRepository extends JpaRepository<FileEntity, Long> {
 
     @Query("SELECT f FROM FileEntity f WHERE f.uploader.id = :userId AND f.bucket = :bucket ORDER BY f.createdAt DESC")
     List<FileEntity> findByUploaderIdAndBucket(@Param("userId") Long userId, @Param("bucket") String bucket);
+
+    @Query("SELECT f FROM FileEntity f WHERE f.expiresAt IS NOT NULL AND f.expiresAt < :now")
+    List<FileEntity> findExpiredFiles(@Param("now") LocalDateTime now);
 }
