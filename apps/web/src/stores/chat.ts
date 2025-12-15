@@ -24,6 +24,9 @@ interface ChatState {
 // Typing indicator timeout in milliseconds
 const TYPING_TIMEOUT_MS = 3000
 
+// Message send timeout in milliseconds (30 seconds)
+const SEND_TIMEOUT_MS = 30000
+
 export const useChatStore = defineStore('chat', {
   state: (): ChatState => ({
     conversations: [],
@@ -118,12 +121,15 @@ export const useChatStore = defineStore('chat', {
       this.loadingMessages = true
       try {
         const messages = await messageApi.getMessages(conversationId, beforeMsgId)
+        // Backend returns messages in DESC order (newest first), reverse for chronological display
+        const chronological = [...messages].reverse()
         const existing = this.messages.get(conversationId) || []
 
         if (beforeMsgId) {
-          this.messages.set(conversationId, [...messages, ...existing])
+          // Older messages go before existing (prepend)
+          this.messages.set(conversationId, [...chronological, ...existing])
         } else {
-          this.messages.set(conversationId, messages)
+          this.messages.set(conversationId, chronological)
         }
 
         // API returns array directly; hasMore = true if we got full limit
@@ -159,15 +165,24 @@ export const useChatStore = defineStore('chat', {
       const messages = this.messages.get(conversationId) || []
       this.messages.set(conversationId, [...messages, tempMessage])
 
+      // Create timeout promise that rejects after SEND_TIMEOUT_MS
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Send timeout')), SEND_TIMEOUT_MS)
+      })
+
       try {
-        const sent = await messageApi.sendMessage({
-          conversationId,
-          msgType,
-          content,
-          metadata,
-          quoteMsgId,
-          atUserIds,
-        })
+        // Race between actual send and timeout
+        const sent = await Promise.race([
+          messageApi.sendMessage({
+            conversationId,
+            msgType,
+            content,
+            metadata,
+            quoteMsgId,
+            atUserIds,
+          }),
+          timeoutPromise,
+        ])
 
         const updated = this.messages.get(conversationId) || []
         const index = updated.findIndex((m: Message) => m.msgId === tempId)
@@ -295,10 +310,21 @@ export const useChatStore = defineStore('chat', {
 
     // Handle read receipt notification from the other user in a private chat
     handleReadReceiptNotify(conversationId: number, _readerId: number, lastReadMsgId: number) {
+      console.log('[Chat] handleReadReceiptNotify:', {
+        conversationId,
+        lastReadMsgId,
+        currentMap: Array.from(this.lastReadByOther.entries()),
+      })
       // Update the last read message ID for this conversation
       const currentLastRead = this.lastReadByOther.get(conversationId) || 0
       if (lastReadMsgId > currentLastRead) {
-        this.lastReadByOther.set(conversationId, lastReadMsgId)
+        // Create a new Map to trigger Vue reactivity
+        const newMap = new Map(this.lastReadByOther)
+        newMap.set(conversationId, lastReadMsgId)
+        this.lastReadByOther = newMap
+        console.log('[Chat] Updated lastReadByOther:', Array.from(this.lastReadByOther.entries()))
+      } else {
+        console.log('[Chat] lastReadMsgId not greater than current, skipping update')
       }
     },
 

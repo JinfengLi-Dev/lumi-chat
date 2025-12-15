@@ -359,6 +359,7 @@ class WebSocketService {
   }
 
   private handleReadReceiptNotify(data: { conversationId: number; readerId: number; lastReadMsgId: number }): void {
+    console.log('[WS Service] READ_RECEIPT_NOTIFY received in service:', data)
     this.handlers.onReadReceiptNotify?.(data.conversationId, data.readerId, data.lastReadMsgId)
   }
 

@@ -349,6 +349,85 @@ describe('Chat Store', () => {
     })
   })
 
+  describe('handleReadReceiptNotify', () => {
+    it('should update lastReadByOther map for conversation', () => {
+      chatStore.handleReadReceiptNotify(1, 2, 100)
+
+      expect(chatStore.lastReadByOther.get(1)).toBe(100)
+    })
+
+    it('should update to higher lastReadMsgId', () => {
+      chatStore.handleReadReceiptNotify(1, 2, 50)
+      chatStore.handleReadReceiptNotify(1, 2, 100)
+
+      expect(chatStore.lastReadByOther.get(1)).toBe(100)
+    })
+
+    it('should NOT update to lower lastReadMsgId', () => {
+      chatStore.handleReadReceiptNotify(1, 2, 100)
+      chatStore.handleReadReceiptNotify(1, 2, 50)
+
+      expect(chatStore.lastReadByOther.get(1)).toBe(100)
+    })
+
+    it('should handle multiple conversations independently', () => {
+      chatStore.handleReadReceiptNotify(1, 2, 100)
+      chatStore.handleReadReceiptNotify(2, 3, 200)
+
+      expect(chatStore.lastReadByOther.get(1)).toBe(100)
+      expect(chatStore.lastReadByOther.get(2)).toBe(200)
+    })
+
+    it('should create new Map instance for Vue reactivity', () => {
+      const originalMap = chatStore.lastReadByOther
+      chatStore.handleReadReceiptNotify(1, 2, 100)
+
+      expect(chatStore.lastReadByOther).not.toBe(originalMap)
+    })
+  })
+
+  describe('isMessageReadByOther', () => {
+    it('should return false when no read receipt received', () => {
+      expect(chatStore.isMessageReadByOther(1, 100)).toBe(false)
+    })
+
+    it('should return true when message ID equals lastReadMsgId', () => {
+      chatStore.handleReadReceiptNotify(1, 2, 100)
+
+      expect(chatStore.isMessageReadByOther(1, 100)).toBe(true)
+    })
+
+    it('should return true when message ID is less than lastReadMsgId', () => {
+      chatStore.handleReadReceiptNotify(1, 2, 100)
+
+      expect(chatStore.isMessageReadByOther(1, 50)).toBe(true)
+    })
+
+    it('should return false when message ID is greater than lastReadMsgId', () => {
+      chatStore.handleReadReceiptNotify(1, 2, 100)
+
+      expect(chatStore.isMessageReadByOther(1, 150)).toBe(false)
+    })
+
+    it('should return false for different conversation', () => {
+      chatStore.handleReadReceiptNotify(1, 2, 100)
+
+      expect(chatStore.isMessageReadByOther(2, 50)).toBe(false)
+    })
+  })
+
+  describe('getLastReadByOther', () => {
+    it('should return undefined when no read receipt received', () => {
+      expect(chatStore.getLastReadByOther(1)).toBeUndefined()
+    })
+
+    it('should return lastReadMsgId after receiving read receipt', () => {
+      chatStore.handleReadReceiptNotify(1, 2, 100)
+
+      expect(chatStore.getLastReadByOther(1)).toBe(100)
+    })
+  })
+
   describe('Getters', () => {
     describe('currentConversation', () => {
       it('should return null when no current conversation', () => {

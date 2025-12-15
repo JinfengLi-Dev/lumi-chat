@@ -113,6 +113,12 @@ const conversation = computed(() => chatStore.currentConversation)
 const messages = computed(() => chatStore.currentMessages)
 const hasMore = computed(() => chatStore.hasMoreMessages.get(conversationId.value) ?? true)
 
+// Track the last read status to force re-renders when read receipts arrive
+const lastReadByOther = computed(() => {
+  if (!conversationId.value) return undefined
+  return chatStore.lastReadByOther.get(conversationId.value)
+})
+
 watch(conversationId, async (id) => {
   if (id) {
     chatStore.setCurrentConversation(id)
@@ -447,16 +453,26 @@ function getMessageStatus(msg: Message): 'sending' | 'sent' | 'delivered' | 'rea
 
 // Auto-send read receipt when messages are viewed
 function sendReadReceipt() {
-  if (!conversationId.value || !wsStore.isConnected) return
-  if (!conversation.value || conversation.value.type === 'group') return
+  if (!conversationId.value || !wsStore.isConnected) {
+    console.log('[UI] sendReadReceipt skipped: not connected or no conversationId')
+    return
+  }
+  if (!conversation.value || conversation.value.type === 'group') {
+    console.log('[UI] sendReadReceipt skipped: no conversation or is group')
+    return
+  }
 
   // Find the last message from the other user
   const otherUserMessages = messages.value.filter((m) => !isSelf(m.senderId) && m.id)
-  if (otherUserMessages.length === 0) return
+  if (otherUserMessages.length === 0) {
+    console.log('[UI] sendReadReceipt skipped: no messages from other user')
+    return
+  }
 
   const lastMessage = otherUserMessages[otherUserMessages.length - 1]
   if (!lastMessage?.id) return
 
+  console.log('[UI] sendReadReceipt: sending for lastMessage.id=', lastMessage.id, 'conversationId=', conversationId.value)
   wsStore.sendReadAck(conversationId.value, lastMessage.id)
 }
 
@@ -689,7 +705,7 @@ onUnmounted(() => {
 
       <div
         v-for="msg in messages"
-        :key="msg.msgId"
+        :key="`${msg.msgId}-${lastReadByOther}`"
         :data-msg-id="msg.msgId"
         class="message"
         :class="{ self: isSelf(msg.senderId), other: !isSelf(msg.senderId) }"

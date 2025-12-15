@@ -33,7 +33,7 @@ const statusConfig = computed(() => {
     case 'read':
       return {
         icon: 'double-check',
-        color: 'var(--el-color-primary)',
+        color: 'var(--el-color-danger)',
         title: 'Read',
       }
     case 'failed':

@@ -182,12 +182,17 @@ public class MessageProcessor {
             Long conversationId = ((Number) data.get("conversationId")).longValue();
             Long lastReadMsgId = ((Number) data.get("lastReadMsgId")).longValue();
 
+            log.info("READ_ACK received from user {} for conversation {}, lastReadMsgId={}",
+                    session.getUserId(), conversationId, lastReadMsgId);
+
             // Persist read status via API and get info about who to notify
             ApiClient.ReadStatusResult readResult = apiClient.updateReadStatus(
                     session.getUserId(), conversationId, lastReadMsgId);
 
             if (!readResult.success()) {
                 log.warn("Failed to persist read status: {}", readResult.error());
+            } else {
+                log.info("Read status persisted, notifyUserId={}", readResult.notifyUserId());
             }
 
             // Publish read status to Redis for sync to user's other devices
@@ -208,7 +213,10 @@ public class MessageProcessor {
                         "lastReadMsgId", lastReadMsgId
                 ));
                 sendToUser(readResult.notifyUserId(), readReceiptPacket);
-                log.debug("Read receipt sent to user {} for conversation {}", readResult.notifyUserId(), conversationId);
+                log.info("READ_RECEIPT_NOTIFY sent to user {} for conversation {}, lastReadMsgId={}",
+                        readResult.notifyUserId(), conversationId, lastReadMsgId);
+            } else {
+                log.warn("notifyUserId is null for conversation {}, cannot send read receipt", conversationId);
             }
         } catch (Exception e) {
             log.error("Failed to process read ack", e);
@@ -493,8 +501,13 @@ public class MessageProcessor {
 
     public void sendToUser(Long userId, Packet packet) {
         var sessions = sessionManager.getSessionsByUserId(userId);
+        log.info("sendToUser: userId={}, sessions found={}, packetType={}",
+                userId, sessions.size(), packet.getType());
         for (UserSession session : sessions) {
             sendPacket(session, packet);
+        }
+        if (sessions.isEmpty()) {
+            log.warn("No active sessions found for user {}, packet not delivered", userId);
         }
     }
 

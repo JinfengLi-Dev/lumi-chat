@@ -118,6 +118,7 @@ export const useWebSocketStore = defineStore('websocket', {
         },
 
         onReadReceiptNotify: (conversationId, readerId, lastReadMsgId) => {
+          console.log('[WS] READ_RECEIPT_NOTIFY received:', { conversationId, readerId, lastReadMsgId })
           const chatStore = useChatStore()
           chatStore.handleReadReceiptNotify(conversationId, readerId, lastReadMsgId)
         },
@@ -170,6 +171,7 @@ export const useWebSocketStore = defineStore('websocket', {
     async sendReadAck(conversationId: number, lastReadMsgId: number) {
       if (this.status !== 'connected') return
       try {
+        console.log('[WS] Sending READ_ACK:', { conversationId, lastReadMsgId })
         await websocketService.sendReadAck(conversationId, lastReadMsgId)
       } catch (error) {
         console.warn('[WebSocket Store] Failed to send read ack:', error)

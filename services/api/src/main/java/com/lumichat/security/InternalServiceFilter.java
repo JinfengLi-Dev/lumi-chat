@@ -34,7 +34,9 @@ public class InternalServiceFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        String requestPath = request.getRequestURI();
+        // Use getServletPath() which excludes the context path (e.g., "/api/v1")
+        // getRequestURI() returns "/api/v1/internal/..." which doesn't match "/internal/" prefix
+        String requestPath = request.getServletPath();
 
         // Only process internal service endpoints
         if (!isInternalServicePath(requestPath)) {
