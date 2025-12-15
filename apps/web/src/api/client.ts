@@ -4,12 +4,11 @@ import type { ApiResponse } from '@/types'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
 // Create axios instance
+// NOTE: Don't set default Content-Type here - it must be set dynamically
+// to allow FormData uploads to work correctly (axios auto-sets multipart/form-data with boundary)
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 })
 
 // Request interceptor - add auth token

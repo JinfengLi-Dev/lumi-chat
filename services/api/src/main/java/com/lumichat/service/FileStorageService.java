@@ -222,6 +222,8 @@ public class FileStorageService {
     }
 
     private String getBaseUrl() {
-        return "http://localhost:" + serverPort + contextPath;
+        // Return relative URL - frontend proxy handles routing to backend
+        // This ensures URLs work from any host (localhost, production, other users)
+        return contextPath;
     }
 }

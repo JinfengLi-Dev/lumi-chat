@@ -122,7 +122,7 @@ class MessageServiceTest {
             // Given
             when(userConversationRepository.findByUserIdAndConversationId(1L, 100L))
                     .thenReturn(Optional.of(userConversation));
-            when(messageRepository.findByConversationIdOrderByServerCreatedAtDesc(eq(100L), any(Pageable.class)))
+            when(messageRepository.findByConversationIdAfterClearedAt(eq(100L), isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(Arrays.asList(testMessage)));
 
             // When
@@ -139,7 +139,7 @@ class MessageServiceTest {
             // Given
             when(userConversationRepository.findByUserIdAndConversationId(1L, 100L))
                     .thenReturn(Optional.of(userConversation));
-            when(messageRepository.findBeforeId(eq(100L), eq(500L), any(Pageable.class)))
+            when(messageRepository.findBeforeIdAfterClearedAt(eq(100L), eq(500L), isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(Collections.emptyList()));
 
             // When
@@ -147,7 +147,7 @@ class MessageServiceTest {
 
             // Then
             assertThat(results).isEmpty();
-            verify(messageRepository).findBeforeId(eq(100L), eq(500L), any(Pageable.class));
+            verify(messageRepository).findBeforeIdAfterClearedAt(eq(100L), eq(500L), isNull(), any(Pageable.class));
         }
 
         @Test
@@ -728,6 +728,140 @@ class MessageServiceTest {
             String msgId = (String) capturedEvent.get("msgId");
             assertThat(msgId).isEqualTo("501"); // DB ID as string
             assertThat(Long.parseLong(msgId)).isEqualTo(501L); // Should be parseable as Long
+        }
+
+        @Test
+        @DisplayName("Should parse metadata JSON to Object to avoid double-encoding")
+        void shouldParseMetadataJsonToObject() throws JsonProcessingException {
+            // Given - image message with metadata containing fileUrl
+            SendMessageRequest request = new SendMessageRequest();
+            request.setConversationId(100L);
+            request.setMsgType("image");
+            request.setContent("/api/v1/files/abc123");
+            request.setMetadata("{\"fileUrl\":\"/api/v1/files/abc123\",\"thumbnailUrl\":\"/api/v1/files/thumb123\",\"width\":800,\"height\":600}");
+
+            when(userConversationRepository.findByUserIdAndConversationId(1L, 100L))
+                    .thenReturn(Optional.of(userConversation));
+            when(conversationRepository.findById(100L)).thenReturn(Optional.of(conversation));
+            when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+            when(messageRepository.save(any(Message.class))).thenAnswer(inv -> {
+                Message m = inv.getArgument(0);
+                m.setId(501L);
+                m.setServerCreatedAt(LocalDateTime.now());
+                return m;
+            });
+            when(conversationRepository.save(any(Conversation.class))).thenReturn(conversation);
+
+            // Mock objectMapper.readValue to parse the metadata JSON string to a Map
+            ObjectMapper realMapper = new ObjectMapper();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> parsedMetadata = realMapper.readValue(
+                    "{\"fileUrl\":\"/api/v1/files/abc123\",\"thumbnailUrl\":\"/api/v1/files/thumb123\",\"width\":800,\"height\":600}",
+                    Map.class
+            );
+            when(objectMapper.readValue(anyString(), eq(Object.class))).thenReturn(parsedMetadata);
+
+            ArgumentCaptor<Map> mapCaptor = ArgumentCaptor.forClass(Map.class);
+            when(objectMapper.writeValueAsString(mapCaptor.capture())).thenReturn("{\"test\":\"json\"}");
+
+            // When
+            messageService.sendMessage(1L, "device-123", request);
+
+            // Then - verify metadata in the message payload is an Object (Map), not a String
+            Map<String, Object> capturedEvent = mapCaptor.getValue();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> messagePayload = (Map<String, Object>) capturedEvent.get("message");
+            Object metadata = messagePayload.get("metadata");
+
+            // The key assertion: metadata should be a Map (parsed JSON), not a String
+            assertThat(metadata).isNotNull();
+            assertThat(metadata).isInstanceOf(Map.class);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> metadataMap = (Map<String, Object>) metadata;
+            assertThat(metadataMap.get("fileUrl")).isEqualTo("/api/v1/files/abc123");
+            assertThat(metadataMap.get("thumbnailUrl")).isEqualTo("/api/v1/files/thumb123");
+            assertThat(metadataMap.get("width")).isEqualTo(800);
+            assertThat(metadataMap.get("height")).isEqualTo(600);
+        }
+
+        @Test
+        @DisplayName("Should handle null metadata gracefully")
+        void shouldHandleNullMetadataGracefully() throws JsonProcessingException {
+            // Given - text message without metadata
+            SendMessageRequest request = new SendMessageRequest();
+            request.setConversationId(100L);
+            request.setMsgType("text");
+            request.setContent("Hello World");
+            request.setMetadata(null);
+
+            when(userConversationRepository.findByUserIdAndConversationId(1L, 100L))
+                    .thenReturn(Optional.of(userConversation));
+            when(conversationRepository.findById(100L)).thenReturn(Optional.of(conversation));
+            when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+            when(messageRepository.save(any(Message.class))).thenAnswer(inv -> {
+                Message m = inv.getArgument(0);
+                m.setId(501L);
+                m.setServerCreatedAt(LocalDateTime.now());
+                return m;
+            });
+            when(conversationRepository.save(any(Conversation.class))).thenReturn(conversation);
+
+            ArgumentCaptor<Map> mapCaptor = ArgumentCaptor.forClass(Map.class);
+            when(objectMapper.writeValueAsString(mapCaptor.capture())).thenReturn("{\"test\":\"json\"}");
+
+            // When
+            messageService.sendMessage(1L, "device-123", request);
+
+            // Then - metadata should be null, not empty string or throw exception
+            Map<String, Object> capturedEvent = mapCaptor.getValue();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> messagePayload = (Map<String, Object>) capturedEvent.get("message");
+
+            assertThat(messagePayload.get("metadata")).isNull();
+            // Verify objectMapper.readValue was never called for null metadata
+            verify(objectMapper, never()).readValue((String) isNull(), eq(Object.class));
+        }
+
+        @Test
+        @DisplayName("Should fallback to string when metadata parsing fails")
+        void shouldFallbackToStringWhenMetadataParsingFails() throws JsonProcessingException {
+            // Given - message with invalid JSON in metadata field
+            SendMessageRequest request = new SendMessageRequest();
+            request.setConversationId(100L);
+            request.setMsgType("image");
+            request.setContent("/api/v1/files/abc123");
+            request.setMetadata("invalid-json{");
+
+            when(userConversationRepository.findByUserIdAndConversationId(1L, 100L))
+                    .thenReturn(Optional.of(userConversation));
+            when(conversationRepository.findById(100L)).thenReturn(Optional.of(conversation));
+            when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+            when(messageRepository.save(any(Message.class))).thenAnswer(inv -> {
+                Message m = inv.getArgument(0);
+                m.setId(501L);
+                m.setServerCreatedAt(LocalDateTime.now());
+                return m;
+            });
+            when(conversationRepository.save(any(Conversation.class))).thenReturn(conversation);
+
+            // Mock objectMapper.readValue to throw exception for invalid JSON
+            when(objectMapper.readValue(eq("invalid-json{"), eq(Object.class)))
+                    .thenThrow(new com.fasterxml.jackson.core.JsonParseException(null, "Invalid JSON"));
+
+            ArgumentCaptor<Map> mapCaptor = ArgumentCaptor.forClass(Map.class);
+            when(objectMapper.writeValueAsString(mapCaptor.capture())).thenReturn("{\"test\":\"json\"}");
+
+            // When
+            messageService.sendMessage(1L, "device-123", request);
+
+            // Then - metadata should fallback to original string value
+            Map<String, Object> capturedEvent = mapCaptor.getValue();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> messagePayload = (Map<String, Object>) capturedEvent.get("message");
+
+            // Should fallback to the original string when parsing fails
+            assertThat(messagePayload.get("metadata")).isEqualTo("invalid-json{");
         }
 
         @Test

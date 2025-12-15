@@ -248,13 +248,18 @@ export const useChatStore = defineStore('chat', {
       this.messages.set(message.conversationId, [...messages, message])
 
       const conv = this.conversations.find((c: Conversation) => c.id === message.conversationId)
-      if (conv) {
-        conv.lastMessage = message
-        conv.lastMsgTime = message.serverCreatedAt
 
-        if (message.conversationId !== this.currentConversationId) {
-          conv.unreadCount++
-        }
+      // If conversation doesn't exist in store, refetch to get it with correct unreadCount
+      if (!conv) {
+        this.fetchConversations()
+        return
+      }
+
+      conv.lastMessage = message
+      conv.lastMsgTime = message.serverCreatedAt
+
+      if (message.conversationId !== this.currentConversationId) {
+        conv.unreadCount++
       }
     },
 

@@ -285,7 +285,18 @@ public class MessageService {
             messagePayload.put("conversationId", message.getConversation().getId());
             messagePayload.put("msgType", message.getMsgType().toString());
             messagePayload.put("content", message.getContent() != null ? message.getContent() : "");
-            messagePayload.put("metadata", message.getMetadata());
+            // Parse metadata JSON string to Object to avoid double-encoding
+            // Without this, the JSON string gets escaped again when serialized
+            Object metadataObj = null;
+            if (message.getMetadata() != null) {
+                try {
+                    metadataObj = objectMapper.readValue(message.getMetadata(), Object.class);
+                } catch (Exception e) {
+                    log.warn("Failed to parse metadata for message {}: {}", message.getMsgId(), e.getMessage());
+                    metadataObj = message.getMetadata(); // fallback to string
+                }
+            }
+            messagePayload.put("metadata", metadataObj);
             messagePayload.put("quoteMsgId", message.getQuoteMsgId());
             messagePayload.put("atUserIds", message.getAtUserIds());
             messagePayload.put("senderId", userId);
