@@ -14,13 +14,20 @@ const emit = defineEmits<{
 }>()
 
 // Generate a static map preview URL if none provided
-// Using OpenStreetMap static image service
+// Using OpenStreetMap tile service (more reliable than staticmap.openstreetmap.de)
 const mapImageUrl = computed(() => {
   if (props.mapPreviewUrl) {
     return props.mapPreviewUrl
   }
-  // Fallback to a placeholder or OpenStreetMap embed
-  return `https://staticmap.openstreetmap.de/staticmap.php?center=${props.latitude},${props.longitude}&zoom=15&size=200x120&maptype=mapnik&markers=${props.latitude},${props.longitude},red-pushpin`
+  // Calculate tile coordinates from lat/lng at zoom level 15
+  const zoom = 15
+  const lat = props.latitude
+  const lon = props.longitude
+  const n = Math.pow(2, zoom)
+  const x = Math.floor(((lon + 180) / 360) * n)
+  const latRad = (lat * Math.PI) / 180
+  const y = Math.floor(((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n)
+  return `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`
 })
 
 // Format coordinates for display

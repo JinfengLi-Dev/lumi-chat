@@ -55,16 +55,16 @@ describe('LocationMessage', () => {
       expect(wrapper.find('.location-address').text()).toBe('Unknown location')
     })
 
-    it('should display map preview image', () => {
+    it('should display map preview image with OpenStreetMap tile', () => {
       const wrapper = mount(LocationMessage, {
         props: defaultProps,
       })
 
       const img = wrapper.find('.map-image')
       expect(img.exists()).toBe(true)
-      expect(img.attributes('src')).toContain('staticmap')
-      expect(img.attributes('src')).toContain('39.9042')
-      expect(img.attributes('src')).toContain('116.4074')
+      // Uses OpenStreetMap tile service with zoom/x/y format
+      expect(img.attributes('src')).toContain('tile.openstreetmap.org')
+      expect(img.attributes('src')).toMatch(/\/\d+\/\d+\/\d+\.png$/)
     })
 
     it('should use custom mapPreviewUrl when provided', () => {

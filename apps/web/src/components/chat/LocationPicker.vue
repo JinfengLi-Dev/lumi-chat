@@ -1,7 +1,22 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { Location as LocationIcon, Search, Aim } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+
+// Fix Leaflet default marker icon issue (webpack/vite bundling breaks default icon paths)
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
+import markerIcon from 'leaflet/dist/images/marker-icon.png'
+import markerShadow from 'leaflet/dist/images/marker-shadow.png'
+
+// @ts-ignore - Leaflet internal API
+delete L.Icon.Default.prototype._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+})
 
 interface LocationData {
   latitude: number
@@ -9,7 +24,7 @@ interface LocationData {
   address: string
 }
 
-defineProps<{
+const props = defineProps<{
   visible: boolean
 }>()
 
@@ -22,19 +37,111 @@ const searchQuery = ref('')
 const isLoading = ref(false)
 const selectedLocation = ref<LocationData | null>(null)
 const recentLocations = ref<LocationData[]>([])
+const mapContainer = ref<HTMLDivElement | null>(null)
 
-// Default location (can be set to user's current location)
+// Leaflet map and marker instances
+let map: L.Map | null = null
+let marker: L.Marker | null = null
+
+// Default location (Beijing, China)
 const defaultLocation = ref({
   latitude: 39.9042,
   longitude: 116.4074,
   address: 'Beijing, China',
 })
 
-// Map preview URL for selected location
-const mapPreviewUrl = computed(() => {
-  const loc = selectedLocation.value || defaultLocation.value
-  return `https://staticmap.openstreetmap.de/staticmap.php?center=${loc.latitude},${loc.longitude}&zoom=15&size=400x200&maptype=mapnik&markers=${loc.latitude},${loc.longitude},red-pushpin`
+// Initialize Leaflet map when component becomes visible
+watch(
+  () => props.visible,
+  async (visible) => {
+    if (visible) {
+      await nextTick()
+      initMap()
+    } else {
+      destroyMap()
+    }
+  }
+)
+
+// Update map when location changes
+watch(selectedLocation, (loc) => {
+  if (loc && map && marker) {
+    map.setView([loc.latitude, loc.longitude], 15)
+    marker.setLatLng([loc.latitude, loc.longitude])
+  }
 })
+
+function initMap() {
+  if (!mapContainer.value || map) return
+
+  const loc = selectedLocation.value || defaultLocation.value
+
+  map = L.map(mapContainer.value, {
+    center: [loc.latitude, loc.longitude],
+    zoom: 15,
+    zoomControl: true,
+    attributionControl: false,
+  })
+
+  // Add OpenStreetMap tiles
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+  }).addTo(map)
+
+  // Add draggable marker
+  marker = L.marker([loc.latitude, loc.longitude], {
+    draggable: true,
+  }).addTo(map)
+
+  // Update location when marker is dragged
+  marker.on('dragend', async () => {
+    if (marker) {
+      const pos = marker.getLatLng()
+      isLoading.value = true
+      try {
+        const address = await reverseGeocode(pos.lat, pos.lng)
+        selectedLocation.value = {
+          latitude: pos.lat,
+          longitude: pos.lng,
+          address,
+        }
+      } finally {
+        isLoading.value = false
+      }
+    }
+  })
+
+  // Update location when map is clicked
+  map.on('click', async (e: L.LeafletMouseEvent) => {
+    if (marker) {
+      marker.setLatLng(e.latlng)
+      isLoading.value = true
+      try {
+        const address = await reverseGeocode(e.latlng.lat, e.latlng.lng)
+        selectedLocation.value = {
+          latitude: e.latlng.lat,
+          longitude: e.latlng.lng,
+          address,
+        }
+      } finally {
+        isLoading.value = false
+      }
+    }
+  })
+
+  // Invalidate size after map is shown (fixes rendering issues in modals)
+  setTimeout(() => {
+    map?.invalidateSize()
+  }, 100)
+}
+
+function destroyMap() {
+  if (map) {
+    map.remove()
+    map = null
+    marker = null
+  }
+}
 
 // Load recent locations from localStorage
 onMounted(() => {
@@ -46,6 +153,10 @@ onMounted(() => {
   } catch {
     // Ignore errors
   }
+})
+
+onUnmounted(() => {
+  destroyMap()
 })
 
 // Get current location using browser Geolocation API
@@ -68,14 +179,19 @@ async function getCurrentLocation() {
 
     const { latitude, longitude } = position.coords
 
-    // Try to get address from coordinates (reverse geocoding)
-    // In a real app, you'd use a geocoding service
+    // Get address from coordinates (reverse geocoding)
     const address = await reverseGeocode(latitude, longitude)
 
     selectedLocation.value = {
       latitude,
       longitude,
       address,
+    }
+
+    // Center map on new location
+    if (map && marker) {
+      map.setView([latitude, longitude], 15)
+      marker.setLatLng([latitude, longitude])
     }
   } catch (error: any) {
     if (error.code === 1) {
@@ -92,7 +208,7 @@ async function getCurrentLocation() {
   }
 }
 
-// Reverse geocode coordinates to address
+// Reverse geocode coordinates to address using OpenStreetMap Nominatim
 async function reverseGeocode(lat: number, lng: number): Promise<string> {
   try {
     const response = await fetch(
@@ -110,7 +226,7 @@ async function reverseGeocode(lat: number, lng: number): Promise<string> {
   }
 }
 
-// Search for location by name
+// Search for location by name using OpenStreetMap Nominatim
 async function searchLocation() {
   if (!searchQuery.value.trim()) return
 
@@ -128,10 +244,17 @@ async function searchLocation() {
     const data = await response.json()
 
     if (data.length > 0) {
-      selectedLocation.value = {
+      const result = {
         latitude: parseFloat(data[0].lat),
         longitude: parseFloat(data[0].lon),
         address: data[0].display_name,
+      }
+      selectedLocation.value = result
+
+      // Center map on search result
+      if (map && marker) {
+        map.setView([result.latitude, result.longitude], 15)
+        marker.setLatLng([result.latitude, result.longitude])
       }
     } else {
       ElMessage.warning('Location not found')
@@ -145,6 +268,12 @@ async function searchLocation() {
 
 function selectRecentLocation(location: LocationData) {
   selectedLocation.value = location
+
+  // Center map on selected location
+  if (map && marker) {
+    map.setView([location.latitude, location.longitude], 15)
+    marker.setLatLng([location.latitude, location.longitude])
+  }
 }
 
 function confirmSelection() {
@@ -207,17 +336,16 @@ function close() {
           </el-button>
         </div>
 
-        <!-- Map preview -->
-        <div class="map-container">
-          <img
-            :src="mapPreviewUrl"
-            alt="Map Preview"
-            class="map-preview"
-            @error="($event.target as HTMLImageElement).style.display = 'none'"
-          />
-          <div class="map-pin">
-            <el-icon :size="32" color="#f56c6c"><LocationIcon /></el-icon>
+        <!-- Interactive Leaflet Map -->
+        <div ref="mapContainer" class="map-container">
+          <div v-if="!map" class="map-loading">
+            <el-icon :size="32" class="loading-icon"><LocationIcon /></el-icon>
+            <span>Loading map...</span>
           </div>
+        </div>
+
+        <div class="map-hint">
+          Click on the map or drag the marker to select a location
         </div>
 
         <!-- Selected location info -->
@@ -264,8 +392,8 @@ function close() {
 }
 
 .location-picker {
-  width: 480px;
-  max-height: 80vh;
+  width: 520px;
+  max-height: 85vh;
   background: var(--el-bg-color);
   border-radius: 12px;
   overflow: hidden;
@@ -302,25 +430,33 @@ function close() {
 
 .map-container {
   position: relative;
-  height: 200px;
+  height: 280px;
   margin: 0 20px;
   background: var(--el-fill-color-light);
   border-radius: 8px;
   overflow: hidden;
 }
 
-.map-preview {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.map-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--el-text-color-secondary);
 }
 
-.map-pin {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -100%);
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+.loading-icon {
+  color: var(--el-color-primary);
+}
+
+.map-hint {
+  padding: 8px 20px 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  text-align: center;
 }
 
 .selected-info {
@@ -329,7 +465,7 @@ function close() {
   gap: 8px;
   padding: 12px 20px;
   background: var(--el-fill-color-lighter);
-  margin: 16px 20px 0;
+  margin: 12px 20px 0;
   border-radius: 8px;
 }
 
@@ -346,7 +482,7 @@ function close() {
 }
 
 .recent-locations {
-  padding: 16px 20px 0;
+  padding: 12px 20px 0;
 }
 
 .section-title {
@@ -388,5 +524,31 @@ function close() {
   padding: 16px 20px;
   border-top: 1px solid var(--el-border-color-lighter);
   margin-top: auto;
+}
+
+/* Leaflet specific styles */
+:deep(.leaflet-container) {
+  height: 100%;
+  width: 100%;
+  border-radius: 8px;
+  font-family: inherit;
+}
+
+:deep(.leaflet-control-zoom) {
+  border: none !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15) !important;
+}
+
+:deep(.leaflet-control-zoom a) {
+  border-radius: 4px !important;
+  border: none !important;
+}
+
+:deep(.leaflet-control-zoom a:first-child) {
+  border-radius: 4px 4px 0 0 !important;
+}
+
+:deep(.leaflet-control-zoom a:last-child) {
+  border-radius: 0 0 4px 4px !important;
 }
 </style>

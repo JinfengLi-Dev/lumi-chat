@@ -37,6 +37,17 @@ server:
   port: 10080
   servlet:
     context-path: /api/v1
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never
+    include-exception: false
+  tomcat:
+    uri-encoding: UTF-8
 
 app:
   jwt:
