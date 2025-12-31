@@ -5,11 +5,11 @@ spring:
   data:
     redis:
       host: localhost
-      port: 6380
+      port: 10379
       database: 0
 
 server:
-  port: 8081
+  port: 10081
 
 app:
   jwt:
@@ -17,16 +17,16 @@ app:
     secret: lumi-chat-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256
 
 api:
-  base-url: http://localhost:8080/api/v1
+  base-url: http://localhost:10080/api/v1
 
 im:
   websocket:
-    port: 7901
+    port: 17901
     path: /ws
   tcp:
-    port: 8901
+    port: 18901
   udp:
-    port: 7903
+    port: 17903
 
   # Session settings
   session:

@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   # PostgreSQL Database
-  # Using port 5433 to avoid conflict with other projects
+  # Using port 10432 to avoid conflict with other projects
   postgres:
     image: postgres:16-alpine
     container_name: lumichat-postgres
@@ -11,7 +11,7 @@ services:
       POSTGRES_USER: lumichat
       POSTGRES_PASSWORD: lumichat_dev
     ports:
-      - "5433:5432"
+      - "10432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d
@@ -24,12 +24,12 @@ services:
       - lumichat-network
 
   # Redis for sessions, cache, and pub/sub
-  # Using port 6380 to avoid conflict with other projects
+  # Using port 10379 to avoid conflict with other projects
   redis:
     image: redis:7-alpine
     container_name: lumichat-redis
     ports:
-      - "6380:6379"
+      - "10379:6379"
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -42,7 +42,7 @@ services:
       - lumichat-network
 
   # MinIO for file storage (S3-compatible)
-  # Using ports 9002-9003 to avoid conflict with other projects
+  # Using ports 10900-10901 to avoid conflict with other projects
   minio:
     image: minio/minio:latest
     container_name: lumichat-minio
@@ -51,8 +51,8 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "9002:9000"
-      - "9003:9001"
+      - "10900:9000"
+      - "10901:9001"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -93,7 +93,7 @@ services:
   #     dockerfile: Dockerfile
   #   container_name: lumichat-api
   #   ports:
-  #     - "8080:8080"
+  #     - "10080:10080"
   #   environment:
   #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lumichat
   #     SPRING_DATASOURCE_USERNAME: lumichat
@@ -120,9 +120,9 @@ services:
   #     dockerfile: Dockerfile
   #   container_name: lumichat-im
   #   ports:
-  #     - "7901:7901"  # WebSocket
-  #     - "7903:7903"  # UDP
-  #     - "8901:8901"  # TCP
+  #     - "10901:7901"  # WebSocket
+  #     - "10903:7903"  # UDP
+  #     - "10801:8901"  # TCP
   #   environment:
   #     REDIS_HOST: redis
   #     REDIS_PORT: 6379
