@@ -10,6 +10,23 @@ export interface SendMessageRequest {
   atUserIds?: number[]
 }
 
+// Backend returns metadata as JSON string, so we need to parse it
+interface RawMessage extends Omit<Message, 'metadata'> {
+  metadata?: string | MessageMetadata
+}
+
+function parseMessageMetadata(raw: RawMessage): Message {
+  const message = raw as Message
+  if (typeof raw.metadata === 'string' && raw.metadata) {
+    try {
+      message.metadata = JSON.parse(raw.metadata)
+    } catch {
+      message.metadata = undefined
+    }
+  }
+  return message
+}
+
 export const messageApi = {
   /**
    * Get messages for a conversation
@@ -17,18 +34,23 @@ export const messageApi = {
    * @param before - The ID of the message to load before (for pagination)
    */
   async getMessages(conversationId: number, before?: number, limit = 50): Promise<Message[]> {
-    const response = await apiClient.get<ApiResponse<Message[]>>(
+    const response = await apiClient.get<ApiResponse<RawMessage[]>>(
       `/conversations/${conversationId}/messages`,
       {
         params: { before, limit },
       }
     )
-    return response.data.data
+    return response.data.data.map(parseMessageMetadata)
   },
 
   async sendMessage(request: SendMessageRequest): Promise<Message> {
-    const response = await apiClient.post<ApiResponse<Message>>('/messages', request)
-    return response.data.data
+    // Backend expects metadata as JSON string, not object
+    const payload = {
+      ...request,
+      metadata: request.metadata ? JSON.stringify(request.metadata) : undefined,
+    }
+    const response = await apiClient.post<ApiResponse<RawMessage>>('/messages', payload)
+    return parseMessageMetadata(response.data.data)
   },
 
   async recallMessage(msgId: string): Promise<void> {
@@ -48,13 +70,13 @@ export const messageApi = {
    * GET /conversations/{id}/messages/search?q=xxx
    */
   async searchMessages(conversationId: number, query: string, page = 0, limit = 20): Promise<Message[]> {
-    const response = await apiClient.get<ApiResponse<Message[]>>(
+    const response = await apiClient.get<ApiResponse<RawMessage[]>>(
       `/conversations/${conversationId}/messages/search`,
       {
         params: { q: query, page, limit },
       }
     )
-    return response.data.data
+    return response.data.data.map(parseMessageMetadata)
   },
 
   async uploadFile(file: File, onProgress?: (percent: number) => void): Promise<{ fileId: string; url: string }> {

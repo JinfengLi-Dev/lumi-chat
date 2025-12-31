@@ -1,5 +1,22 @@
 import type { Message, MessageType, MessageMetadata } from '@/types'
 
+// Backend may return metadata as JSON string, so we need to parse it
+interface RawMessage extends Omit<Message, 'metadata'> {
+  metadata?: string | MessageMetadata
+}
+
+function parseMessageMetadata(raw: RawMessage): Message {
+  const message = raw as Message
+  if (typeof raw.metadata === 'string' && raw.metadata) {
+    try {
+      message.metadata = JSON.parse(raw.metadata)
+    } catch {
+      message.metadata = undefined
+    }
+  }
+  return message
+}
+
 // Protocol types matching IM server's ProtocolType.java
 export const ProtocolType = {
   // Client to Server
@@ -282,7 +299,7 @@ class WebSocketService {
       // Handle server-initiated messages
       switch (packet.type) {
         case ProtocolType.RECEIVE_MESSAGE:
-          this.handleReceiveMessage(packet.data as Message)
+          this.handleReceiveMessage(packet.data as RawMessage)
           break
 
         case ProtocolType.CHAT_MESSAGE_ACK:
@@ -325,8 +342,9 @@ class WebSocketService {
     }
   }
 
-  private handleReceiveMessage(data: Message): void {
-    this.handlers.onMessage?.(data)
+  private handleReceiveMessage(data: RawMessage): void {
+    const message = parseMessageMetadata(data)
+    this.handlers.onMessage?.(message)
   }
 
   private handleMessageAck(data: { clientMsgId: string; msgId: string; serverTimestamp: number; success: boolean }): void {
