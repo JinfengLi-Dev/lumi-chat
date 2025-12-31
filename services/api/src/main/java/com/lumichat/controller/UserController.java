@@ -3,8 +3,10 @@ package com.lumichat.controller;
 import com.lumichat.dto.request.ChangePasswordRequest;
 import com.lumichat.dto.request.UpdateProfileRequest;
 import com.lumichat.dto.response.ApiResponse;
+import com.lumichat.dto.response.FileResponse;
 import com.lumichat.dto.response.UserResponse;
 import com.lumichat.security.UserPrincipal;
+import com.lumichat.service.FileStorageService;
 import com.lumichat.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,7 @@ import java.util.List;
 public class UserController {
 
     private final UserService userService;
+    private final FileStorageService fileStorageService;
 
     /**
      * Get current user profile
@@ -69,9 +72,9 @@ public class UserController {
             return ApiResponse.error("File size must be less than 5MB");
         }
 
-        // TODO: Implement actual file upload to MinIO
-        // For now, return a placeholder URL
-        String avatarUrl = "/api/v1/files/avatars/" + principal.getId() + "_" + System.currentTimeMillis() + ".jpg";
+        // Upload to MinIO
+        FileResponse fileResponse = fileStorageService.uploadAvatar(principal.getId(), file);
+        String avatarUrl = fileResponse.getUrl();
 
         UserResponse user = userService.updateAvatar(principal.getId(), avatarUrl);
         return ApiResponse.success(new AvatarResponse(user.getAvatar()));
