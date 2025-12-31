@@ -199,18 +199,19 @@ function handleContextMenuMute(conv: Conversation) {
   ElMessage.info(`${conv.isMuted ? 'Unmuted' : 'Muted'} conversation`)
 }
 
-function handleContextMenuMarkRead(_conv: Conversation) {
-  // Mark as read - would need API call
-  // TODO: Call chatStore.markConversationRead(_conv.id)
-  ElMessage.success('Marked as read')
+async function handleContextMenuMarkRead(conv: Conversation) {
+  try {
+    await chatStore.markAsRead(conv.id)
+    ElMessage.success('Marked as read')
+  } catch {
+    ElMessage.error('Failed to mark as read')
+  }
 }
 
-async function handleContextMenuDelete(_conv: Conversation) {
+async function handleContextMenuDelete(conv: Conversation) {
   try {
-    // Would call API to delete conversation
-    // TODO: Call chatStore.deleteConversation(_conv.id)
+    await chatStore.deleteConversation(conv.id)
     ElMessage.success('Conversation deleted')
-    await chatStore.fetchConversations()
   } catch {
     ElMessage.error('Failed to delete conversation')
   }

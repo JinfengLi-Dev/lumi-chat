@@ -412,6 +412,18 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    async deleteConversation(conversationId: number) {
+      await conversationApi.deleteConversation(conversationId)
+      // Remove from local state
+      this.conversations = this.conversations.filter((c: Conversation) => c.id !== conversationId)
+      this.messages.delete(conversationId)
+      this.hasMoreMessages.delete(conversationId)
+      // Clear current if it was the deleted one
+      if (this.currentConversationId === conversationId) {
+        this.currentConversationId = null
+      }
+    },
+
     reset() {
       // Clear all typing timeouts
       for (const conversationTyping of this.typingUsers.values()) {
