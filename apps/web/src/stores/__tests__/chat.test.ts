@@ -114,15 +114,15 @@ describe('Chat Store', () => {
         createMockMessage({ msgId: 'msg-1' }),
         createMockMessage({ msgId: 'msg-2' }),
       ]
-      vi.mocked(messageApi.getMessages).mockResolvedValue({
-        items: mockMessages,
-        hasMore: false,
-      })
+      // API returns array directly, not a paged response object
+      vi.mocked(messageApi.getMessages).mockResolvedValue(mockMessages)
 
       await chatStore.fetchMessages(1)
 
       expect(messageApi.getMessages).toHaveBeenCalledWith(1, undefined)
-      expect(chatStore.messages.get(1)).toEqual(mockMessages)
+      // Store reverses the messages (backend returns DESC, store displays chronologically)
+      expect(chatStore.messages.get(1)).toEqual([...mockMessages].reverse())
+      // hasMore is true if array length >= 50
       expect(chatStore.hasMoreMessages.get(1)).toBe(false)
     })
 
@@ -134,19 +134,20 @@ describe('Chat Store', () => {
         createMockMessage({ msgId: 'msg-1' }),
         createMockMessage({ msgId: 'msg-2' }),
       ]
-      vi.mocked(messageApi.getMessages).mockResolvedValue({
-        items: olderMessages,
-        hasMore: true,
-      })
+      // API returns array directly
+      vi.mocked(messageApi.getMessages).mockResolvedValue(olderMessages)
 
       await chatStore.fetchMessages(1, 10)
 
       expect(messageApi.getMessages).toHaveBeenCalledWith(1, 10)
       const messages = chatStore.messages.get(1)
       expect(messages).toHaveLength(3)
-      expect(messages![0].msgId).toBe('msg-1')
+      // Store reverses older messages and prepends them
+      expect(messages![0].msgId).toBe('msg-2')
+      expect(messages![1].msgId).toBe('msg-1')
       expect(messages![2].msgId).toBe('msg-3')
-      expect(chatStore.hasMoreMessages.get(1)).toBe(true)
+      // hasMore is false because olderMessages.length (2) < 50
+      expect(chatStore.hasMoreMessages.get(1)).toBe(false)
     })
   })
 
@@ -205,12 +206,16 @@ describe('Chat Store', () => {
   })
 
   describe('forwardMessage', () => {
-    it('should call forward API with correct parameters', async () => {
+    it('should call forward API for each target conversation', async () => {
       vi.mocked(messageApi.forwardMessage).mockResolvedValue(undefined)
 
       await chatStore.forwardMessage('msg-1', [2, 3, 4])
 
-      expect(messageApi.forwardMessage).toHaveBeenCalledWith('msg-1', [2, 3, 4])
+      // Store iterates over array and calls API for each target
+      expect(messageApi.forwardMessage).toHaveBeenCalledTimes(3)
+      expect(messageApi.forwardMessage).toHaveBeenNthCalledWith(1, 'msg-1', 2)
+      expect(messageApi.forwardMessage).toHaveBeenNthCalledWith(2, 'msg-1', 3)
+      expect(messageApi.forwardMessage).toHaveBeenNthCalledWith(3, 'msg-1', 4)
     })
   })
 

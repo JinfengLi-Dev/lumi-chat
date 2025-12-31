@@ -52,7 +52,7 @@ describe('MessageStatus', () => {
       expect(icon.exists()).toBe(true)
     })
 
-    it('should show blue double check for read', () => {
+    it('should show double check for read', () => {
       const wrapper = mount(MessageStatus, {
         props: {
           status: 'read',
@@ -61,8 +61,8 @@ describe('MessageStatus', () => {
 
       const icon = wrapper.find('.status-icon')
       expect(icon.exists()).toBe(true)
-      // Read status should have primary color
-      expect(icon.attributes('style')).toContain('--el-color-primary')
+      // Read status uses danger color (red) for distinction
+      expect(icon.attributes('style')).toContain('--el-color-danger')
     })
 
     it('should show error icon for failed', () => {
@@ -214,7 +214,7 @@ describe('MessageStatus', () => {
       expect(icon.attributes('style')).toContain('--el-text-color-secondary')
     })
 
-    it('should use primary color for read', () => {
+    it('should use danger color for read', () => {
       const wrapper = mount(MessageStatus, {
         props: {
           status: 'read',
@@ -222,7 +222,7 @@ describe('MessageStatus', () => {
       })
 
       const icon = wrapper.find('.status-icon')
-      expect(icon.attributes('style')).toContain('--el-color-primary')
+      expect(icon.attributes('style')).toContain('--el-color-danger')
     })
 
     it('should use danger color for failed', () => {

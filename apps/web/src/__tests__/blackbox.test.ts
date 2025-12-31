@@ -268,7 +268,11 @@ describe('Black Box Testing - User Flows', () => {
 
         await chatStore.forwardMessage('msg-123', [1, 2, 3])
 
-        expect(messageApi.forwardMessage).toHaveBeenCalledWith('msg-123', [1, 2, 3])
+        // Store iterates over array and calls API for each target conversation
+        expect(messageApi.forwardMessage).toHaveBeenCalledTimes(3)
+        expect(messageApi.forwardMessage).toHaveBeenNthCalledWith(1, 'msg-123', 1)
+        expect(messageApi.forwardMessage).toHaveBeenNthCalledWith(2, 'msg-123', 2)
+        expect(messageApi.forwardMessage).toHaveBeenNthCalledWith(3, 'msg-123', 3)
       })
     })
   })

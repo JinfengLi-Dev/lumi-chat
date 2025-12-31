@@ -259,20 +259,17 @@ describe('Store Integration Tests', () => {
         },
       ]
 
-      vi.mocked(messageApi.getMessages).mockResolvedValue({
-        items: mockMessages,
-        total: 2,
-        page: 1,
-        pageSize: 50,
-        hasMore: false,
-      })
+      // API returns array directly, not a paged response object
+      vi.mocked(messageApi.getMessages).mockResolvedValue(mockMessages)
 
       await chatStore.fetchMessages(1)
 
       // Access messages via store's internal method - messages is a Map
+      // Store reverses messages (backend returns DESC, store displays chronologically)
       const messages = chatStore.messages.get(1)
       expect(messages).toHaveLength(2)
-      expect(messages?.[0].content).toBe('Hello!')
+      expect(messages?.[0].content).toBe('Hi there!') // Second message is now first after reversal
+      expect(messages?.[1].content).toBe('Hello!')
     })
 
     it('should send message and update conversation', async () => {
