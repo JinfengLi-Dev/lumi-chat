@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Edit, UserFilled, Delete, SwitchButton, Plus } from '@element-plus/icons-vue'
+import { Edit, UserFilled, Delete, SwitchButton, Plus, Avatar } from '@element-plus/icons-vue'
 import { groupApi } from '@/api/group'
 import GroupMemberList from './GroupMemberList.vue'
 import type { GroupDetail, GroupMember } from '@/api/group'
@@ -17,7 +17,18 @@ const emit = defineEmits<{
   (e: 'invite-members'): void
   (e: 'leave'): void
   (e: 'dissolve'): void
+  (e: 'transfer-ownership'): void
 }>()
+
+// Transfer ownership dialog state
+const showTransferDialog = ref(false)
+const selectedNewOwnerId = ref<number | null>(null)
+const isTransferring = ref(false)
+
+// Filter members who can become owner (exclude current owner)
+const transferableMember = computed(() => {
+  return members.value.filter((m) => m.userId !== props.currentUserId)
+})
 
 const groupDetail = ref<GroupDetail | null>(null)
 const members = ref<GroupMember[]>([])
@@ -189,6 +200,31 @@ async function handleDissolveGroup() {
   }
 }
 
+function openTransferDialog() {
+  selectedNewOwnerId.value = null
+  showTransferDialog.value = true
+}
+
+async function handleTransferOwnership() {
+  if (!props.group?.id || !selectedNewOwnerId.value) return
+
+  isTransferring.value = true
+  try {
+    const selectedMember = members.value.find((m) => m.userId === selectedNewOwnerId.value)
+    await groupApi.transferOwnership(props.group.id, selectedNewOwnerId.value)
+    ElMessage.success(`Ownership transferred to ${selectedMember?.nickname}`)
+    showTransferDialog.value = false
+    emit('transfer-ownership')
+    // Reload group detail to reflect new owner
+    await loadGroupDetail()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to transfer ownership'
+    ElMessage.error(message)
+  } finally {
+    isTransferring.value = false
+  }
+}
+
 watch(() => props.group?.id, async (newId) => {
   if (newId) {
     await Promise.all([loadGroupDetail(), loadMembers()])
@@ -309,6 +345,16 @@ watch(() => props.group?.id, async (newId) => {
 
         <el-button
           v-if="isOwner"
+          type="primary"
+          plain
+          :icon="Avatar"
+          @click="openTransferDialog"
+        >
+          Transfer Ownership
+        </el-button>
+
+        <el-button
+          v-if="isOwner"
           type="danger"
           plain
           :icon="Delete"
@@ -317,6 +363,52 @@ watch(() => props.group?.id, async (newId) => {
           Dissolve Group
         </el-button>
       </div>
+
+      <!-- Transfer Ownership Dialog -->
+      <el-dialog
+        v-model="showTransferDialog"
+        title="Transfer Group Ownership"
+        width="400px"
+        :close-on-click-modal="false"
+      >
+        <div class="transfer-dialog-content">
+          <p class="transfer-warning">
+            After transferring ownership, you will become a regular member of this group.
+          </p>
+          <el-select
+            v-model="selectedNewOwnerId"
+            placeholder="Select new owner"
+            style="width: 100%"
+            filterable
+          >
+            <el-option
+              v-for="member in transferableMember"
+              :key="member.userId"
+              :label="member.nickname"
+              :value="member.userId"
+            >
+              <div class="member-option">
+                <el-avatar :src="member.avatar" :size="24">
+                  {{ member.nickname.charAt(0) }}
+                </el-avatar>
+                <span>{{ member.nickname }}</span>
+                <el-tag v-if="member.role === 'admin'" size="small" type="warning">Admin</el-tag>
+              </div>
+            </el-option>
+          </el-select>
+        </div>
+        <template #footer>
+          <el-button @click="showTransferDialog = false">Cancel</el-button>
+          <el-button
+            type="primary"
+            :disabled="!selectedNewOwnerId"
+            :loading="isTransferring"
+            @click="handleTransferOwnership"
+          >
+            Transfer
+          </el-button>
+        </template>
+      </el-dialog>
     </template>
 
     <template v-else-if="!isLoadingDetail">
@@ -418,5 +510,28 @@ watch(() => props.group?.id, async (newId) => {
   align-items: center;
   justify-content: center;
   height: 200px;
+}
+
+.transfer-dialog-content {
+  padding: 8px 0;
+}
+
+.transfer-warning {
+  margin: 0 0 16px 0;
+  padding: 12px;
+  background-color: var(--el-color-warning-light-9);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--el-color-warning-dark-2);
+}
+
+.member-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.member-option .el-tag {
+  margin-left: auto;
 }
 </style>
