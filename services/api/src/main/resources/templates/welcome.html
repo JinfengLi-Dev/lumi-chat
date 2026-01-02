@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Lumi Chat</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f7fa;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+        <tr>
+            <td>
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px 8px 0 0;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;">Lumi Chat</h1>
+                        </td>
+                    </tr>
+
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            <h2 style="margin: 0 0 20px; color: #303133; font-size: 24px; font-weight: 500;">
+                                Welcome, <span th:text="${nickname}">User</span>!
+                            </h2>
+
+                            <p style="margin: 0 0 20px; color: #606266; font-size: 16px; line-height: 1.6;">
+                                Thank you for joining Lumi Chat! We're excited to have you as part of our community.
+                            </p>
+
+                            <p style="margin: 0 0 20px; color: #606266; font-size: 16px; line-height: 1.6;">
+                                With Lumi Chat, you can:
+                            </p>
+
+                            <ul style="margin: 0 0 20px; padding-left: 20px; color: #606266; font-size: 16px; line-height: 1.8;">
+                                <li>Send instant messages to friends</li>
+                                <li>Create and join group chats</li>
+                                <li>Share photos, files, and more</li>
+                                <li>Stay connected across all your devices</li>
+                            </ul>
+
+                            <p style="margin: 0 0 20px; color: #606266; font-size: 16px; line-height: 1.6;">
+                                Get started by adding friends and starting conversations!
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 20px 40px 30px; border-top: 1px solid #e4e7ed; text-align: center;">
+                            <p style="margin: 0; color: #909399; font-size: 13px;">
+                                This is an automated message from Lumi Chat.
+                                <br>Please do not reply to this email.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

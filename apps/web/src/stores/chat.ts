@@ -300,12 +300,58 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
-    handleReadStatusSync(conversationId: number, _lastReadMsgId: number) {
+    handleReadStatusSync(conversationId: number, lastReadMsgId: number) {
+      // This is called when read status is synced from another device of the same user
+      // So we should update the local unread count for this conversation
       const conv = this.conversations.find((c: Conversation) => c.id === conversationId)
       if (conv) {
         conv.unreadCount = 0
         conv.atMsgIds = []
       }
+
+      // If the conversation is currently open, no additional action needed
+      // The unread count has been synced
+
+      console.log('[Chat] Read status synced from other device:', { conversationId, lastReadMsgId })
+    },
+
+    // Handle batch of offline messages received after reconnect
+    handleOfflineMessages(messages: { id: number; conversationId: number; messageId: number; message?: Message }[]) {
+      console.log('[Chat] Processing', messages.length, 'offline messages')
+
+      // Group messages by conversation
+      const messagesByConversation = new Map<number, Message[]>()
+
+      for (const offlineMsg of messages) {
+        if (offlineMsg.message) {
+          const convId = offlineMsg.conversationId
+          if (!messagesByConversation.has(convId)) {
+            messagesByConversation.set(convId, [])
+          }
+          messagesByConversation.get(convId)!.push(offlineMsg.message)
+        }
+      }
+
+      // Add messages to each conversation
+      for (const [conversationId, newMessages] of messagesByConversation.entries()) {
+        const existing = this.messages.get(conversationId) || []
+
+        // Filter out duplicates
+        const uniqueMessages = newMessages.filter(
+          (newMsg) => !existing.some((existingMsg) => existingMsg.msgId === newMsg.msgId)
+        )
+
+        if (uniqueMessages.length > 0) {
+          // Sort by serverCreatedAt
+          const allMessages = [...existing, ...uniqueMessages].sort((a, b) =>
+            new Date(a.serverCreatedAt).getTime() - new Date(b.serverCreatedAt).getTime()
+          )
+          this.messages.set(conversationId, allMessages)
+        }
+      }
+
+      // Refresh conversation list to update unread counts
+      this.fetchConversations()
     },
 
     // Handle read receipt notification from the other user in a private chat

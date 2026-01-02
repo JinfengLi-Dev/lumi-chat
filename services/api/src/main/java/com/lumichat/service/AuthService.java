@@ -12,6 +12,8 @@ import com.lumichat.repository.UserDeviceRepository;
 import com.lumichat.repository.UserRepository;
 import com.lumichat.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -27,6 +30,10 @@ public class AuthService {
     private final UserDeviceRepository userDeviceRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final EmailService emailService;
+
+    @Value("${app.frontend-url:http://localhost:5173}")
+    private String frontendUrl;
 
     @Transactional
     public LoginResponse login(LoginRequest request, String ipAddress) {
@@ -85,6 +92,9 @@ public class AuthService {
 
         user = userRepository.save(user);
 
+        // Send welcome email asynchronously
+        emailService.sendWelcomeEmail(request.getEmail(), request.getNickname());
+
         return UserResponse.from(user);
     }
 
@@ -140,6 +150,11 @@ public class AuthService {
             throw new UnauthorizedException("Invalid or expired reset token");
         }
 
+        // Verify it's actually a password-reset token, not an access/refresh token
+        if (!jwtTokenProvider.isPasswordResetToken(token)) {
+            throw new UnauthorizedException("Invalid token type");
+        }
+
         Long userId = jwtTokenProvider.getUserIdFromToken(token);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UnauthorizedException("User not found"));
@@ -147,6 +162,24 @@ public class AuthService {
         // Update password
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+
+        log.info("Password reset successful for user: {}", userId);
+    }
+
+    public void initiatePasswordReset(String email) {
+        // Find user by email - always return success to prevent email enumeration
+        userRepository.findByEmail(email).ifPresent(user -> {
+            // Generate password reset token
+            String resetToken = jwtTokenProvider.generatePasswordResetToken(user.getId());
+
+            // Build reset URL
+            String resetUrl = frontendUrl + "/reset-password?token=" + resetToken;
+
+            // Send email asynchronously
+            emailService.sendPasswordResetEmail(email, resetUrl);
+
+            log.info("Password reset email initiated for user: {}", user.getId());
+        });
     }
 
     private void registerDevice(User user, LoginRequest request, String ipAddress) {

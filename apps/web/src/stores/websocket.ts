@@ -123,6 +123,16 @@ export const useWebSocketStore = defineStore('websocket', {
           chatStore.handleReadReceiptNotify(conversationId, readerId, lastReadMsgId)
         },
 
+        onOfflineMessages: (messages) => {
+          console.log('[WS] Received offline messages:', messages.length)
+          const chatStore = useChatStore()
+          chatStore.handleOfflineMessages(messages)
+        },
+
+        onOfflineSyncComplete: (count) => {
+          console.log('[WS] Offline sync complete, total:', count)
+        },
+
         onKickedOffline: (reason) => {
           this.status = 'disconnected'
           this.kickedOfflineReason = reason

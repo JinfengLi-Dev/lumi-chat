@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Top, BellFilled } from '@element-plus/icons-vue'
+import { Top, BellFilled, Operation } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useChatStore } from '@/stores/chat'
 import { useWebSocketStore } from '@/stores/websocket'
@@ -12,9 +12,11 @@ import CreateGroupDialog from '@/components/group/CreateGroupDialog.vue'
 import FriendsList from '@/components/contact/FriendsList.vue'
 import GroupsList from '@/components/group/GroupsList.vue'
 import ConversationContextMenu from '@/components/chat/ConversationContextMenu.vue'
+import ConversationSkeleton from '@/components/common/ConversationSkeleton.vue'
 import type { Conversation } from '@/types'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const chatStore = useChatStore()
 const wsStore = useWebSocketStore()
@@ -26,9 +28,19 @@ const showAddFriendDialog = ref(false)
 const showFriendRequestsDialog = ref(false)
 const showCreateGroupDialog = ref(false)
 
+// Mobile navigation state
+const isMobileMenuOpen = ref(false)
+const keyboardFocusIndex = ref(-1)
+
 // Component refs for FriendsList and GroupsList
 const friendsListRef = ref<InstanceType<typeof FriendsList>>()
 const groupsListRef = ref<InstanceType<typeof GroupsList>>()
+const conversationListRef = ref<HTMLElement>()
+
+// Check if we're on a conversation page (for mobile view)
+const isConversationActive = computed(() => {
+  return route.path.includes('/conversation/')
+})
 
 // Context menu state
 const contextMenuVisible = ref(false)
@@ -81,11 +93,63 @@ onMounted(async () => {
   } catch (error: any) {
     ElMessage.error('Failed to load conversations')
   }
+
+  // Add keyboard event listener
+  window.addEventListener('keydown', handleKeyDown)
 })
 
 onUnmounted(() => {
-  // Cleanup WebSocket connection if needed
+  // Cleanup keyboard event listener
+  window.removeEventListener('keydown', handleKeyDown)
 })
+
+// Mobile menu toggle
+function toggleMobileMenu() {
+  isMobileMenuOpen.value = !isMobileMenuOpen.value
+}
+
+function closeMobileMenu() {
+  isMobileMenuOpen.value = false
+}
+
+// Keyboard navigation
+function handleKeyDown(e: KeyboardEvent) {
+  // Skip if user is typing in an input
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+    return
+  }
+
+  const conversations = filteredConversations.value
+
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault()
+      if (keyboardFocusIndex.value < conversations.length - 1) {
+        keyboardFocusIndex.value++
+      } else {
+        keyboardFocusIndex.value = 0
+      }
+      break
+    case 'ArrowUp':
+      e.preventDefault()
+      if (keyboardFocusIndex.value > 0) {
+        keyboardFocusIndex.value--
+      } else {
+        keyboardFocusIndex.value = conversations.length - 1
+      }
+      break
+    case 'Enter':
+      if (keyboardFocusIndex.value >= 0 && conversations[keyboardFocusIndex.value]) {
+        selectConversation(conversations[keyboardFocusIndex.value].id)
+      }
+      break
+    case 'Escape':
+      closeMobileMenu()
+      contextMenuVisible.value = false
+      keyboardFocusIndex.value = -1
+      break
+  }
+}
 
 function selectConversation(id: number) {
   chatStore.setCurrentConversation(id)
@@ -220,8 +284,24 @@ async function handleContextMenuDelete(conv: Conversation) {
 
 <template>
   <div class="app-container">
+    <!-- Mobile Menu Toggle Button -->
+    <button
+      class="mobile-menu-toggle"
+      @click="toggleMobileMenu"
+      aria-label="Toggle navigation menu"
+    >
+      <el-icon :size="24"><Operation /></el-icon>
+    </button>
+
+    <!-- Mobile Overlay Backdrop -->
+    <div
+      class="mobile-overlay"
+      :class="{ visible: isMobileMenuOpen }"
+      @click="closeMobileMenu"
+    ></div>
+
     <!-- Left Sidebar -->
-    <div class="sidebar">
+    <div class="sidebar" :class="{ 'mobile-open': isMobileMenuOpen }">
       <el-avatar
         :src="userStore.user?.avatar"
         :size="45"
@@ -293,7 +373,11 @@ async function handleContextMenuDelete(conv: Conversation) {
     </div>
 
     <!-- Conversation List -->
-    <div class="conversation-list">
+    <div
+      class="conversation-list"
+      :class="{ 'hidden-mobile': isConversationActive }"
+      ref="conversationListRef"
+    >
       <div class="conversation-list-header">
         <div class="connection-status">
           <span
@@ -314,18 +398,27 @@ async function handleContextMenuDelete(conv: Conversation) {
       <div class="conversation-list-content">
         <!-- Messages Tab - Conversation List -->
         <template v-if="activeTab === 'messages'">
-          <div
-            v-for="conv in filteredConversations"
-            :key="conv.id"
-            class="conversation-item"
-            :class="{
-              active: chatStore.currentConversationId === conv.id,
-              pinned: conv.isPinned,
-              muted: conv.isMuted
-            }"
-            @click="selectConversation(conv.id)"
-            @contextmenu="(e) => handleConversationContextMenu(e, conv)"
-          >
+          <!-- Loading Skeleton -->
+          <ConversationSkeleton v-if="chatStore.loading" :count="6" />
+
+          <!-- Conversation Items -->
+          <template v-else>
+            <div
+              v-for="(conv, index) in filteredConversations"
+              :key="conv.id"
+              class="conversation-item"
+              :class="{
+                active: chatStore.currentConversationId === conv.id,
+                pinned: conv.isPinned,
+                muted: conv.isMuted,
+                'keyboard-focus': keyboardFocusIndex === index
+              }"
+              :tabindex="0"
+              role="button"
+              :aria-selected="chatStore.currentConversationId === conv.id"
+              @click="selectConversation(conv.id)"
+              @contextmenu="(e) => handleConversationContextMenu(e, conv)"
+            >
             <div class="conversation-item-avatar">
               <el-avatar
                 :src="conv.group?.avatar || conv.targetUser?.avatar"
@@ -356,10 +449,25 @@ async function handleContextMenuDelete(conv: Conversation) {
             </div>
           </div>
 
-          <div v-if="filteredConversations.length === 0" class="flex-center" style="height: 200px; color: #909399">
-            <span v-if="searchQuery">No results found</span>
-            <span v-else>No conversations yet</span>
+          <!-- Enhanced Empty State -->
+          <div v-if="filteredConversations.length === 0" class="empty-state">
+            <el-icon class="empty-state-icon"><ChatDotRound /></el-icon>
+            <div class="empty-state-title">
+              {{ searchQuery ? 'No results found' : 'No conversations yet' }}
+            </div>
+            <div class="empty-state-description">
+              {{ searchQuery
+                ? 'Try a different search term'
+                : 'Start chatting by adding friends or creating a group'
+              }}
+            </div>
+            <div v-if="!searchQuery" class="empty-state-action">
+              <el-button type="primary" @click="showAddFriendDialog = true">
+                Add Friend
+              </el-button>
+            </div>
           </div>
+          </template>
         </template>
 
         <!-- Contacts Tab - Friends List -->

@@ -348,4 +348,97 @@ class AuthControllerIntegrationTest {
                     .andExpect(status().isForbidden()); // Spring Security returns 403 by default without AuthenticationEntryPoint
         }
     }
+
+    @Nested
+    @DisplayName("POST /auth/forgot-password")
+    class ForgotPasswordTests {
+
+        @Test
+        @DisplayName("Should return success for existing email")
+        void shouldReturnSuccessForExistingEmail() throws Exception {
+            String request = "{\"email\": \"test@example.com\"}";
+
+            mockMvc.perform(post("/auth/forgot-password")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(request))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(0));
+        }
+
+        @Test
+        @DisplayName("Should return success for non-existing email (prevent enumeration)")
+        void shouldReturnSuccessForNonExistingEmail() throws Exception {
+            String request = "{\"email\": \"nonexistent@example.com\"}";
+
+            // Always returns success to prevent email enumeration attacks
+            mockMvc.perform(post("/auth/forgot-password")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(request))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(0));
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /auth/reset-password")
+    class ResetPasswordTests {
+
+        @Autowired
+        private com.lumichat.security.JwtTokenProvider jwtTokenProvider;
+
+        @Test
+        @DisplayName("Should reset password with valid token")
+        void shouldResetPasswordWithValidToken() throws Exception {
+            // Generate a valid password reset token
+            String resetToken = jwtTokenProvider.generatePasswordResetToken(testUser.getId());
+
+            String request = "{\"token\": \"" + resetToken + "\", \"newPassword\": \"newpassword123\"}";
+
+            mockMvc.perform(post("/auth/reset-password")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(request))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(0));
+
+            // Verify password was changed by trying to login with new password
+            LoginRequest loginRequest = new LoginRequest();
+            loginRequest.setEmail("test@example.com");
+            loginRequest.setPassword("newpassword123");
+            loginRequest.setDeviceId("device-001");
+            loginRequest.setDeviceType("web");
+
+            mockMvc.perform(post("/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(loginRequest)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(0));
+        }
+
+        @Test
+        @DisplayName("Should fail reset with invalid token")
+        void shouldFailResetWithInvalidToken() throws Exception {
+            String request = "{\"token\": \"invalid-token\", \"newPassword\": \"newpassword123\"}";
+
+            mockMvc.perform(post("/auth/reset-password")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(request))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(not(0)));
+        }
+
+        @Test
+        @DisplayName("Should fail reset with access token instead of reset token")
+        void shouldFailResetWithAccessToken() throws Exception {
+            // Generate an access token (not a password reset token)
+            String accessToken = jwtTokenProvider.generateAccessToken(testUser.getId(), "device-001");
+
+            String request = "{\"token\": \"" + accessToken + "\", \"newPassword\": \"newpassword123\"}";
+
+            mockMvc.perform(post("/auth/reset-password")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(request))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(not(0)));
+        }
+    }
 }

@@ -15,14 +15,17 @@ public class JwtTokenProvider {
     private final SecretKey secretKey;
     private final long accessTokenExpiration;
     private final long refreshTokenExpiration;
+    private final long passwordResetTokenExpiration;
 
     public JwtTokenProvider(
             @Value("${app.jwt.secret}") String secret,
             @Value("${app.jwt.access-token-expiration}") long accessTokenExpiration,
-            @Value("${app.jwt.refresh-token-expiration}") long refreshTokenExpiration) {
+            @Value("${app.jwt.refresh-token-expiration}") long refreshTokenExpiration,
+            @Value("${app.mail.reset-token-expiry:3600000}") long passwordResetTokenExpiration) {
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.accessTokenExpiration = accessTokenExpiration;
         this.refreshTokenExpiration = refreshTokenExpiration;
+        this.passwordResetTokenExpiration = passwordResetTokenExpiration;
     }
 
     public String generateAccessToken(Long userId, String deviceId) {
@@ -98,5 +101,31 @@ public class JwtTokenProvider {
 
     public long getAccessTokenExpiration() {
         return accessTokenExpiration;
+    }
+
+    public String generatePasswordResetToken(Long userId) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + passwordResetTokenExpiration);
+
+        return Jwts.builder()
+                .subject(userId.toString())
+                .claim("type", "password-reset")
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(secretKey)
+                .compact();
+    }
+
+    public boolean isPasswordResetToken(String token) {
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(secretKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            return "password-reset".equals(claims.get("type", String.class));
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
     }
 }

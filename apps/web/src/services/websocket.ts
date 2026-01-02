@@ -80,6 +80,13 @@ export interface ChatMessageData {
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
 
+export interface OfflineMessage {
+  id: number
+  conversationId: number
+  messageId: number
+  message?: Message
+}
+
 export interface WebSocketEventHandlers {
   onConnected?: () => void
   onDisconnected?: () => void
@@ -92,6 +99,8 @@ export interface WebSocketEventHandlers {
   onOnlineStatusChange?: (userId: number, isOnline: boolean) => void
   onOnlineStatusResponse?: (statuses: Record<number, boolean>) => void
   onReadReceiptNotify?: (conversationId: number, readerId: number, lastReadMsgId: number) => void
+  onOfflineMessages?: (messages: OfflineMessage[]) => void
+  onOfflineSyncComplete?: (count: number) => void
   onKickedOffline?: (reason: string) => void
   onError?: (error: string) => void
 }
@@ -201,6 +210,11 @@ class WebSocketService {
     }
 
     console.log('[WS] Logged in as user:', response.userId)
+
+    // Request offline messages after successful login
+    this.requestOfflineSync().catch((error) => {
+      console.warn('[WS] Failed to request offline sync:', error)
+    })
   }
 
   disconnect(): void {
@@ -330,6 +344,19 @@ class WebSocketService {
           this.handleReadReceiptNotify(packet.data as { conversationId: number; readerId: number; lastReadMsgId: number })
           break
 
+        case ProtocolType.OFFLINE_SYNC_RESPONSE:
+          this.handleOfflineSyncResponse(packet.data as { success: boolean; messages: OfflineMessage[]; count: number })
+          break
+
+        case ProtocolType.OFFLINE_SYNC_COMPLETE:
+          this.handleOfflineSyncComplete(packet.data as { success: boolean; count: number })
+          break
+
+        case ProtocolType.READ_ACK:
+          // Read sync from other devices
+          this.handleReadSync(packet.data as { conversationId: number; lastReadMsgId: number })
+          break
+
         case ProtocolType.SERVER_ERROR:
           this.handlers.onError?.((packet.data as { error: string }).error)
           break
@@ -379,6 +406,29 @@ class WebSocketService {
   private handleReadReceiptNotify(data: { conversationId: number; readerId: number; lastReadMsgId: number }): void {
     console.log('[WS Service] READ_RECEIPT_NOTIFY received in service:', data)
     this.handlers.onReadReceiptNotify?.(data.conversationId, data.readerId, data.lastReadMsgId)
+  }
+
+  private handleOfflineSyncResponse(data: { success: boolean; messages: OfflineMessage[]; count: number }): void {
+    if (data.success && data.messages?.length > 0) {
+      console.log('[WS] Received', data.count, 'offline messages')
+      this.handlers.onOfflineMessages?.(data.messages)
+
+      // Send acknowledgment for received messages
+      const messageIds = data.messages.map((m) => m.id)
+      this.acknowledgeOfflineMessages(messageIds).catch((error) => {
+        console.warn('[WS] Failed to acknowledge offline messages:', error)
+      })
+    }
+  }
+
+  private handleOfflineSyncComplete(data: { success: boolean; count: number }): void {
+    console.log('[WS] Offline sync complete, total messages:', data.count)
+    this.handlers.onOfflineSyncComplete?.(data.count)
+  }
+
+  private handleReadSync(data: { conversationId: number; lastReadMsgId: number }): void {
+    console.log('[WS] Read sync from other device:', data)
+    this.handlers.onReadSync?.(data.conversationId, data.lastReadMsgId)
   }
 
   private generateSeq(): string {
@@ -480,6 +530,14 @@ class WebSocketService {
 
   subscribeOnlineStatus(userIds: number[]): Promise<void> {
     return this.send(ProtocolType.ONLINE_STATUS_SUBSCRIBE, { userIds })
+  }
+
+  requestOfflineSync(limit: number = 100): Promise<void> {
+    return this.send(ProtocolType.OFFLINE_SYNC_REQUEST, { limit })
+  }
+
+  acknowledgeOfflineMessages(messageIds: number[]): Promise<void> {
+    return this.send(ProtocolType.OFFLINE_SYNC_ACK, { messageIds })
   }
 
   updateToken(newToken: string): void {

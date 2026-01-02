@@ -52,8 +52,8 @@ public class AuthController {
 
     @PostMapping("/forgot-password")
     public ApiResponse<Void> forgotPassword(@RequestBody ForgotPasswordRequest request) {
-        // TODO: Implement password reset email sending
-        // For now, just return success
+        // Always returns success to prevent email enumeration attacks
+        authService.initiatePasswordReset(request.email());
         return ApiResponse.success();
     }
 
