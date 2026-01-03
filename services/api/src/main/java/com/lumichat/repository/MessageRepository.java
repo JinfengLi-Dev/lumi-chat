@@ -71,4 +71,17 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
             @Param("query") String query,
             @Param("clearedAt") LocalDateTime clearedAt,
             Pageable pageable);
+
+    /**
+     * Batch fetch latest message for each conversation.
+     * Uses a subquery to get the max serverCreatedAt for each conversation,
+     * then fetches those messages.
+     */
+    @Query("SELECT m FROM Message m WHERE m.id IN (" +
+           "SELECT m2.id FROM Message m2 WHERE m2.conversation.id IN :conversationIds " +
+           "AND m2.serverCreatedAt = (" +
+           "  SELECT MAX(m3.serverCreatedAt) FROM Message m3 " +
+           "  WHERE m3.conversation.id = m2.conversation.id" +
+           "))")
+    List<Message> findLatestMessagesForConversations(@Param("conversationIds") List<Long> conversationIds);
 }

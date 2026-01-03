@@ -193,12 +193,13 @@ async function getCurrentLocation() {
       map.setView([latitude, longitude], 15)
       marker.setLatLng([latitude, longitude])
     }
-  } catch (error: any) {
-    if (error.code === 1) {
+  } catch (error: unknown) {
+    const geoError = error as GeolocationPositionError
+    if (geoError.code === 1) {
       ElMessage.warning('Location access was denied')
-    } else if (error.code === 2) {
+    } else if (geoError.code === 2) {
       ElMessage.warning('Location unavailable')
-    } else if (error.code === 3) {
+    } else if (geoError.code === 3) {
       ElMessage.warning('Location request timed out')
     } else {
       ElMessage.error('Failed to get current location')

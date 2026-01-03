@@ -242,7 +242,7 @@ class InternalApiControllerIntegrationTest extends PostgresTestContainerConfig {
             mockMvc.perform(put("/internal/messages/" + message.getMsgId() + "/recall")
                             .header("X-Internal-Service", "im-server")
                             .header("X-User-Id", user1.getId().toString()))
-                    .andExpect(status().isInternalServerError());
+                    .andExpect(status().isForbidden()); // ForbiddenException -> 403
         }
     }
 

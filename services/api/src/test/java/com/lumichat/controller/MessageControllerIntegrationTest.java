@@ -231,7 +231,7 @@ class MessageControllerIntegrationTest extends PostgresTestContainerConfig {
 
             mockMvc.perform(get("/conversations/" + conversation.getId() + "/messages")
                             .header("Authorization", "Bearer " + user3Token))
-                    .andExpect(status().isInternalServerError()); // RuntimeException -> 500
+                    .andExpect(status().isNotFound()); // NotFoundException -> 404
         }
     }
 
@@ -318,7 +318,7 @@ class MessageControllerIntegrationTest extends PostgresTestContainerConfig {
                             .header("Authorization", "Bearer " + user3Token)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isInternalServerError()); // RuntimeException -> 500
+                    .andExpect(status().isNotFound()); // NotFoundException -> 404
         }
     }
 
@@ -344,7 +344,7 @@ class MessageControllerIntegrationTest extends PostgresTestContainerConfig {
 
             mockMvc.perform(put("/messages/" + message.getMsgId() + "/recall")
                             .header("Authorization", "Bearer " + user1Token))
-                    .andExpect(status().isInternalServerError()); // RuntimeException -> 500
+                    .andExpect(status().isForbidden()); // ForbiddenException -> 403
         }
 
         @Test
@@ -352,7 +352,7 @@ class MessageControllerIntegrationTest extends PostgresTestContainerConfig {
         void shouldFailWhenMessageNotFound() throws Exception {
             mockMvc.perform(put("/messages/nonexistent-msg-id/recall")
                             .header("Authorization", "Bearer " + user1Token))
-                    .andExpect(status().isInternalServerError()); // RuntimeException -> 500
+                    .andExpect(status().isNotFound()); // NotFoundException -> 404
         }
     }
 
@@ -386,7 +386,7 @@ class MessageControllerIntegrationTest extends PostgresTestContainerConfig {
                             .header("Authorization", "Bearer " + user1Token)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestBody))
-                    .andExpect(status().isInternalServerError()); // RuntimeException -> 500
+                    .andExpect(status().isNotFound()); // NotFoundException -> 404
         }
     }
 
@@ -412,7 +412,7 @@ class MessageControllerIntegrationTest extends PostgresTestContainerConfig {
 
             mockMvc.perform(delete("/messages/" + message.getMsgId())
                             .header("Authorization", "Bearer " + user1Token))
-                    .andExpect(status().isInternalServerError()); // RuntimeException -> 500
+                    .andExpect(status().isForbidden()); // ForbiddenException -> 403
         }
 
         @Test
@@ -420,7 +420,7 @@ class MessageControllerIntegrationTest extends PostgresTestContainerConfig {
         void shouldFailWhenMessageNotFound() throws Exception {
             mockMvc.perform(delete("/messages/nonexistent-msg-id")
                             .header("Authorization", "Bearer " + user1Token))
-                    .andExpect(status().isInternalServerError()); // RuntimeException -> 500
+                    .andExpect(status().isNotFound()); // NotFoundException -> 404
         }
     }
 }

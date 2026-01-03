@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 import { Search, ChatDotRound } from '@element-plus/icons-vue'
 import { userApi, friendApi, conversationApi } from '@/api'
 import { useChatStore } from '@/stores/chat'
+import { getErrorMessage } from '@/utils/errorHandler'
 import type { User } from '@/types'
 
 const props = defineProps<{
@@ -41,8 +42,8 @@ async function handleSearch() {
   try {
     const users = await userApi.searchUsers(searchQuery.value.trim())
     searchResults.value = users
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || 'Search failed')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error))
   } finally {
     isSearching.value = false
   }
@@ -69,8 +70,8 @@ async function sendFriendRequest() {
     ElMessage.success('Friend request sent')
     emit('request-sent')
     handleClose()
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || 'Failed to send request')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error))
   } finally {
     isSending.value = false
   }
@@ -90,8 +91,8 @@ async function sendMessageToStranger() {
     // Navigate to the conversation
     handleClose()
     router.push(`/chat/${conversation.id}`)
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || 'Failed to start conversation')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error))
   } finally {
     isSending.value = false
   }

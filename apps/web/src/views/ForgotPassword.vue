@@ -2,6 +2,7 @@
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { authApi } from '@/api/auth'
+import { getErrorMessage } from '@/utils/errorHandler'
 import type { FormInstance, FormRules } from 'element-plus'
 
 const formRef = ref<FormInstance>()
@@ -28,8 +29,8 @@ async function handleSubmit() {
     await authApi.forgotPassword(form.email)
     sent.value = true
     ElMessage.success('Password reset email sent!')
-  } catch (error: any) {
-    ElMessage.error(error.message || 'Failed to send email')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error))
   } finally {
     loading.value = false
   }

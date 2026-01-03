@@ -27,6 +27,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import com.lumichat.exception.NotFoundException;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
@@ -106,9 +108,10 @@ class ConversationServiceTest {
             // Given
             when(userConversationRepository.findAllByUserIdOrderByPinnedAndTime(1L))
                     .thenReturn(Arrays.asList(userConversation));
-            when(userRepository.findById(2L)).thenReturn(Optional.of(targetUser));
-            when(messageRepository.findByConversationIdOrderByServerCreatedAtDesc(eq(100L), any(Pageable.class)))
-                    .thenReturn(new PageImpl<>(Collections.emptyList()));
+            // The optimized method uses batch loading
+            when(userRepository.findAllById(any())).thenReturn(Arrays.asList(targetUser));
+            when(messageRepository.findLatestMessagesForConversations(any()))
+                    .thenReturn(Collections.emptyList());
 
             // When
             List<ConversationResponse> results = conversationService.getUserConversations(1L);
@@ -133,8 +136,8 @@ class ConversationServiceTest {
         }
 
         @Test
-        @DisplayName("Should handle exception when building response")
-        void shouldHandleExceptionWhenBuildingResponse() {
+        @DisplayName("Should handle exception when batch loading messages")
+        void shouldHandleExceptionWhenBatchLoadingMessages() {
             // Given
             Conversation brokenConversation = Conversation.builder()
                     .id(999L)
@@ -151,13 +154,18 @@ class ConversationServiceTest {
 
             when(userConversationRepository.findAllByUserIdOrderByPinnedAndTime(1L))
                     .thenReturn(Arrays.asList(brokenUc));
-            when(userRepository.findById(2L)).thenThrow(new RuntimeException("Simulated error"));
+            // The optimized method uses findAllById which doesn't throw for missing users
+            when(userRepository.findAllById(any())).thenReturn(Collections.emptyList());
+            when(messageRepository.findLatestMessagesForConversations(any()))
+                    .thenThrow(new RuntimeException("Simulated error"));
 
             // When
             List<ConversationResponse> results = conversationService.getUserConversations(1L);
 
-            // Then
-            assertThat(results).isEmpty(); // Exception caught, empty list returned
+            // Then - the error is caught during batch loading, conversations still get returned
+            // just without the last message data
+            assertThat(results).hasSize(1);
+            assertThat(results.get(0).getLastMessage()).isNull();
         }
     }
 
@@ -172,7 +180,7 @@ class ConversationServiceTest {
             when(userConversationRepository.findByUserIdAndConversationId(1L, 100L))
                     .thenReturn(Optional.of(userConversation));
             when(userRepository.findById(2L)).thenReturn(Optional.of(targetUser));
-            when(messageRepository.findByConversationIdOrderByServerCreatedAtDesc(eq(100L), any(Pageable.class)))
+            when(messageRepository.findByConversationIdAfterClearedAt(eq(100L), any(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(Collections.emptyList()));
 
             // When
@@ -192,7 +200,7 @@ class ConversationServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> conversationService.getConversation(1L, 999L))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(NotFoundException.class)
                     .hasMessage("Conversation not found");
         }
 
@@ -206,7 +214,7 @@ class ConversationServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> conversationService.getConversation(1L, 100L))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(NotFoundException.class)
                     .hasMessage("Conversation not found");
         }
     }
@@ -350,7 +358,7 @@ class ConversationServiceTest {
             when(userConversationRepository.findAllByUserIdOrderByPinnedAndTime(1L))
                     .thenReturn(Collections.singletonList(userConversation));
             when(userRepository.findById(2L)).thenReturn(Optional.of(targetUser));
-            when(messageRepository.findByConversationIdOrderByServerCreatedAtDesc(eq(100L), any(Pageable.class)))
+            when(messageRepository.findByConversationIdAfterClearedAt(eq(100L), any(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(Collections.emptyList()));
 
             // When
@@ -371,7 +379,7 @@ class ConversationServiceTest {
             when(userConversationRepository.save(any(UserConversation.class)))
                     .thenAnswer(inv -> inv.getArgument(0));
             when(userRepository.findById(2L)).thenReturn(Optional.of(targetUser));
-            when(messageRepository.findByConversationIdOrderByServerCreatedAtDesc(eq(100L), any(Pageable.class)))
+            when(messageRepository.findByConversationIdAfterClearedAt(eq(100L), any(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(Collections.emptyList()));
 
             // When
@@ -402,7 +410,7 @@ class ConversationServiceTest {
                 uc.setId(10L);
                 return uc;
             });
-            when(messageRepository.findByConversationIdOrderByServerCreatedAtDesc(eq(200L), any(Pageable.class)))
+            when(messageRepository.findByConversationIdAfterClearedAt(eq(200L), any(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(Collections.emptyList()));
 
             // When
@@ -424,7 +432,7 @@ class ConversationServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> conversationService.getOrCreatePrivateConversation(1L, 2L))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(NotFoundException.class)
                     .hasMessage("Target user not found");
         }
 
@@ -439,7 +447,7 @@ class ConversationServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> conversationService.getOrCreatePrivateConversation(1L, 2L))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(NotFoundException.class)
                     .hasMessage("Current user not found");
         }
 
@@ -475,7 +483,7 @@ class ConversationServiceTest {
                 uc.setId(10L);
                 return uc;
             });
-            when(messageRepository.findByConversationIdOrderByServerCreatedAtDesc(eq(200L), any(Pageable.class)))
+            when(messageRepository.findByConversationIdAfterClearedAt(eq(200L), any(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(Collections.emptyList()));
 
             // When
@@ -511,9 +519,10 @@ class ConversationServiceTest {
 
             when(userConversationRepository.findAllByUserIdOrderByPinnedAndTime(1L))
                     .thenReturn(Collections.singletonList(strangerUc));
-            when(userRepository.findById(2L)).thenReturn(Optional.of(targetUser));
-            when(messageRepository.findByConversationIdOrderByServerCreatedAtDesc(eq(400L), any(Pageable.class)))
-                    .thenReturn(new PageImpl<>(Collections.emptyList()));
+            // The optimized method uses batch loading
+            when(userRepository.findAllById(any())).thenReturn(Arrays.asList(targetUser));
+            when(messageRepository.findLatestMessagesForConversations(any()))
+                    .thenReturn(Collections.emptyList());
 
             // When
             List<ConversationResponse> results = conversationService.getUserConversations(1L);

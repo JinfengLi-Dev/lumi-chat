@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Monitor, Iphone, Delete, SuccessFilled } from '@element-plus/icons-vue'
 import { deviceApi, type Device } from '@/api'
+import { getErrorMessage } from '@/utils/errorHandler'
 
 const devices = ref<Device[]>([])
 const loading = ref(false)
@@ -18,8 +19,8 @@ async function fetchDevices() {
   loading.value = true
   try {
     devices.value = await deviceApi.getDevices()
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || 'Failed to load devices')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error))
   } finally {
     loading.value = false
   }
@@ -101,9 +102,9 @@ async function handleLogoutDevice(device: Device) {
     await deviceApi.logoutDevice(device.deviceId)
     ElMessage.success('Device logged out successfully')
     await fetchDevices()
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error !== 'cancel') {
-      ElMessage.error(error.response?.data?.message || 'Failed to log out device')
+      ElMessage.error(getErrorMessage(error))
     }
   }
 }
@@ -123,9 +124,9 @@ async function handleLogoutAllDevices() {
     await deviceApi.logoutAllDevices()
     ElMessage.success('All other devices logged out')
     await fetchDevices()
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error !== 'cancel') {
-      ElMessage.error(error.response?.data?.message || 'Failed to log out devices')
+      ElMessage.error(getErrorMessage(error))
     }
   }
 }

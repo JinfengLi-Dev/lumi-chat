@@ -19,6 +19,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -38,6 +40,41 @@ public class FileStorageService {
     @Value("${server.port:8080}")
     private int serverPort;
 
+    // Maximum file size in bytes (10 MB)
+    private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+    // Maximum avatar size in bytes (5 MB)
+    private static final long MAX_AVATAR_SIZE = 5 * 1024 * 1024;
+
+    // Dangerous file extensions that could be executed
+    private static final Set<String> DANGEROUS_EXTENSIONS = Set.of(
+            "exe", "bat", "cmd", "sh", "ps1", "vbs", "js", "jar",
+            "msi", "dll", "com", "scr", "pif", "hta", "php", "asp",
+            "aspx", "jsp", "cgi", "pl", "py", "rb", "class"
+    );
+
+    // Map of MIME types to expected extensions for validation
+    private static final Map<String, Set<String>> MIME_TO_EXTENSIONS = Map.ofEntries(
+            Map.entry("image/jpeg", Set.of("jpg", "jpeg")),
+            Map.entry("image/png", Set.of("png")),
+            Map.entry("image/gif", Set.of("gif")),
+            Map.entry("image/webp", Set.of("webp")),
+            Map.entry("image/svg+xml", Set.of("svg")),
+            Map.entry("video/mp4", Set.of("mp4")),
+            Map.entry("video/webm", Set.of("webm")),
+            Map.entry("audio/mpeg", Set.of("mp3")),
+            Map.entry("audio/ogg", Set.of("ogg")),
+            Map.entry("audio/wav", Set.of("wav")),
+            Map.entry("application/pdf", Set.of("pdf")),
+            Map.entry("text/plain", Set.of("txt")),
+            Map.entry("application/msword", Set.of("doc")),
+            Map.entry("application/vnd.openxmlformats-officedocument.wordprocessingml.document", Set.of("docx")),
+            Map.entry("application/vnd.ms-excel", Set.of("xls")),
+            Map.entry("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Set.of("xlsx")),
+            Map.entry("application/zip", Set.of("zip")),
+            Map.entry("application/x-rar-compressed", Set.of("rar"))
+    );
+
     /**
      * Upload a file
      */
@@ -50,10 +87,19 @@ public class FileStorageService {
             throw new BadRequestException("File is empty");
         }
 
-        String bucket = getBucketForFileType(fileType);
-        String fileId = generateFileId();
+        // Validate file size
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new BadRequestException("File size exceeds maximum allowed size of 10 MB");
+        }
+
         String originalFilename = file.getOriginalFilename();
         String extension = getFileExtension(originalFilename);
+
+        // Security: Validate file to prevent attacks
+        validateFileUpload(originalFilename, extension, file.getContentType());
+
+        String bucket = getBucketForFileType(fileType);
+        String fileId = generateFileId();
         String storagePath = fileId + (extension != null ? "." + extension : "");
 
         try {
@@ -99,6 +145,8 @@ public class FileStorageService {
      */
     @Transactional
     public FileResponse uploadAvatar(Long userId, MultipartFile file) {
+        // Avatar-specific validation (stricter than general file upload)
+        validateAvatarUpload(file);
         return uploadFile(userId, file, "avatar");
     }
 
@@ -239,5 +287,64 @@ public class FileStorageService {
             case "avatar", "image", "thumbnail" -> null;  // Don't expire
             default -> LocalDateTime.now().plusDays(30);  // 30-day retention
         };
+    }
+
+    /**
+     * Validate file upload for security.
+     * Checks for dangerous extensions, double extensions, and MIME type mismatches.
+     */
+    private void validateFileUpload(String filename, String extension, String contentType) {
+        if (filename == null) {
+            throw new BadRequestException("Filename is required");
+        }
+
+        // Check for dangerous extensions
+        if (extension != null && DANGEROUS_EXTENSIONS.contains(extension.toLowerCase())) {
+            log.warn("Blocked dangerous file extension upload: {}", filename);
+            throw new BadRequestException("File type not allowed: " + extension);
+        }
+
+        // Check for double extensions (e.g., malware.php.jpg)
+        // These can be used to bypass security on some servers
+        String[] parts = filename.split("\\.");
+        if (parts.length > 2) {
+            for (int i = 0; i < parts.length - 1; i++) {
+                String part = parts[i].toLowerCase();
+                if (DANGEROUS_EXTENSIONS.contains(part)) {
+                    log.warn("Blocked double extension attack: {}", filename);
+                    throw new BadRequestException("Invalid filename format");
+                }
+            }
+        }
+
+        // Validate MIME type matches extension (if we know the MIME type)
+        if (contentType != null && extension != null) {
+            Set<String> expectedExtensions = MIME_TO_EXTENSIONS.get(contentType.toLowerCase());
+            if (expectedExtensions != null && !expectedExtensions.contains(extension.toLowerCase())) {
+                log.warn("MIME type mismatch: {} vs extension {}", contentType, extension);
+                throw new BadRequestException("File extension does not match content type");
+            }
+        }
+    }
+
+    /**
+     * Validate avatar upload specifically.
+     * More restrictive than general file upload - only allows images.
+     */
+    private void validateAvatarUpload(MultipartFile file) {
+        if (file.getSize() > MAX_AVATAR_SIZE) {
+            throw new BadRequestException("Avatar size exceeds maximum allowed size of 5 MB");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new BadRequestException("Avatar must be an image file");
+        }
+
+        // Specifically check for allowed image types
+        Set<String> allowedImageTypes = Set.of("image/jpeg", "image/png", "image/gif", "image/webp");
+        if (!allowedImageTypes.contains(contentType.toLowerCase())) {
+            throw new BadRequestException("Avatar must be JPEG, PNG, GIF, or WebP format");
+        }
     }
 }

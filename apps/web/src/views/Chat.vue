@@ -14,6 +14,7 @@ import GroupsList from '@/components/group/GroupsList.vue'
 import ConversationContextMenu from '@/components/chat/ConversationContextMenu.vue'
 import ConversationSkeleton from '@/components/common/ConversationSkeleton.vue'
 import type { Conversation } from '@/types'
+import { getErrorMessage } from '@/utils/errorHandler'
 
 const router = useRouter()
 const route = useRoute()
@@ -90,8 +91,8 @@ const connectionStatusColor = computed(() => {
 onMounted(async () => {
   try {
     await chatStore.fetchConversations()
-  } catch (error: any) {
-    ElMessage.error('Failed to load conversations')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error) || 'Failed to load conversations')
   }
 
   // Add keyboard event listener

@@ -23,6 +23,7 @@ import GroupCardPicker from '@/components/chat/GroupCardPicker.vue'
 import TypingIndicator from '@/components/chat/TypingIndicator.vue'
 import MessageStatus from '@/components/chat/MessageStatus.vue'
 import FileMessage from '@/components/chat/FileMessage.vue'
+import { getErrorMessage } from '@/utils/errorHandler'
 
 const route = useRoute()
 const chatStore = useChatStore()
@@ -149,8 +150,8 @@ async function loadMessages() {
     scrollToBottom()
     // Send read receipt after messages are loaded
     sendReadReceipt()
-  } catch (error: any) {
-    ElMessage.error('Failed to load messages')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error) || 'Failed to load messages')
   } finally {
     loading.value = false
   }
@@ -179,8 +180,8 @@ async function sendMessage() {
     await chatStore.sendMessage(conversationId.value, 'text', content)
     await nextTick()
     scrollToBottom()
-  } catch (error: any) {
-    ElMessage.error('Failed to send message')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error) || 'Failed to send message')
     messageInput.value = content
   }
 }
@@ -234,8 +235,8 @@ async function handleContextMenuRecall() {
   try {
     await chatStore.recallMessage(selectedMessage.value.msgId)
     ElMessage.success('Message recalled')
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || 'Failed to recall message')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error) || 'Failed to recall message')
   }
 }
 
@@ -250,8 +251,8 @@ async function handleForwardConfirm(conversationIds: number[]) {
 
   try {
     await chatStore.forwardMessage(messageToForward.value.msgId, conversationIds)
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || 'Failed to forward message')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error) || 'Failed to forward message')
   }
 }
 
@@ -261,8 +262,8 @@ async function handleContextMenuDelete() {
   try {
     await chatStore.deleteMessage(selectedMessage.value.msgId)
     ElMessage.success('Message deleted')
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || 'Failed to delete message')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error) || 'Failed to delete message')
   }
 }
 
@@ -355,8 +356,8 @@ async function uploadAndSendFile(file: File, type: 'image' | 'file') {
     await nextTick()
     scrollToBottom()
     ElMessage.success(`${type === 'image' ? 'Image' : 'File'} sent successfully`)
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || `Failed to upload ${type}`)
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error) || `Failed to upload ${type}`)
   } finally {
     isUploading.value = false
     uploadProgress.value = null

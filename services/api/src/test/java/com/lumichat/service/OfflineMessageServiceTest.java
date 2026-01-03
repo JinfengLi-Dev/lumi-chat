@@ -2,6 +2,7 @@ package com.lumichat.service;
 
 import com.lumichat.dto.response.MessageResponse;
 import com.lumichat.entity.*;
+import com.lumichat.exception.NotFoundException;
 import com.lumichat.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -165,7 +166,7 @@ class OfflineMessageServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> offlineMessageService.queueMessage(1L, "device-123", 500L, 100L))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(NotFoundException.class)
                     .hasMessage("Target user not found");
         }
 
@@ -180,7 +181,7 @@ class OfflineMessageServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> offlineMessageService.queueMessage(1L, "device-123", 500L, 100L))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(NotFoundException.class)
                     .hasMessage("Message not found");
         }
 
@@ -196,7 +197,7 @@ class OfflineMessageServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> offlineMessageService.queueMessage(1L, "device-123", 500L, 100L))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(NotFoundException.class)
                     .hasMessage("Conversation not found");
         }
     }
@@ -389,7 +390,7 @@ class OfflineMessageServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> offlineMessageService.updateSyncStatus(1L, "device-new", 600L))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(NotFoundException.class)
                     .hasMessage("User not found");
         }
     }

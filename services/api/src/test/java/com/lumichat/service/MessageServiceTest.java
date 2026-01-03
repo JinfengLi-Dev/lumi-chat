@@ -8,6 +8,9 @@ import com.lumichat.entity.Conversation;
 import com.lumichat.entity.Message;
 import com.lumichat.entity.User;
 import com.lumichat.entity.UserConversation;
+import com.lumichat.exception.BadRequestException;
+import com.lumichat.exception.ForbiddenException;
+import com.lumichat.exception.NotFoundException;
 import com.lumichat.repository.ConversationRepository;
 import com.lumichat.repository.MessageRepository;
 import com.lumichat.repository.UserConversationRepository;
@@ -159,7 +162,7 @@ class MessageServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> messageService.getMessages(1L, 999L, null, 20))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(NotFoundException.class)
                     .hasMessage("Conversation not found");
         }
     }
@@ -352,7 +355,7 @@ class MessageServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> messageService.sendMessage(1L, "device-123", request))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(BadRequestException.class)
                     .hasMessageContaining("Invalid message type");
         }
 
@@ -370,7 +373,7 @@ class MessageServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> messageService.sendMessage(1L, "device-123", request))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(NotFoundException.class)
                     .hasMessage("Conversation not found");
         }
     }
@@ -407,7 +410,7 @@ class MessageServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> messageService.recallMessage(1L, "msg-not-found"))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(NotFoundException.class)
                     .hasMessage("Message not found");
         }
 
@@ -420,7 +423,7 @@ class MessageServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> messageService.recallMessage(1L, "msg-123456"))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(ForbiddenException.class)
                     .hasMessage("Cannot recall message sent by another user");
         }
 
@@ -433,7 +436,7 @@ class MessageServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> messageService.recallMessage(1L, "msg-123456"))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(BadRequestException.class)
                     .hasMessage("Cannot recall message after 2 minutes");
         }
     }
@@ -486,7 +489,7 @@ class MessageServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> messageService.forwardMessage(1L, "device-123", "msg-not-found", 200L))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(NotFoundException.class)
                     .hasMessage("Message not found");
         }
 
@@ -500,7 +503,7 @@ class MessageServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> messageService.forwardMessage(1L, "device-123", "msg-123456", 200L))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(NotFoundException.class)
                     .hasMessage("Target conversation not found");
         }
     }
@@ -535,7 +538,7 @@ class MessageServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> messageService.deleteMessage(1L, "msg-123456"))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(ForbiddenException.class)
                     .hasMessage("You can only delete your own messages");
         }
 
@@ -547,7 +550,7 @@ class MessageServiceTest {
 
             // When/Then
             assertThatThrownBy(() -> messageService.deleteMessage(1L, "msg-not-found"))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(NotFoundException.class)
                     .hasMessage("Message not found");
         }
     }

@@ -190,8 +190,9 @@ public class AuthService {
             deviceType = UserDevice.DeviceType.web;
         }
 
-        // First check if device exists globally (could be registered to another user)
-        UserDevice device = userDeviceRepository.findByDeviceId(request.getDeviceId())
+        // Use pessimistic locking to prevent race conditions when two users
+        // try to login with the same deviceId simultaneously
+        UserDevice device = userDeviceRepository.findByDeviceIdForUpdate(request.getDeviceId())
                 .orElse(null);
 
         if (device != null) {

@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { conversationApi } from '@/api'
+import { getErrorMessage } from '@/utils/errorHandler'
 import type { Conversation, Message } from '@/types'
 
 const props = defineProps<{
@@ -61,8 +62,8 @@ async function loadConversations() {
   isLoading.value = true
   try {
     conversations.value = await conversationApi.getConversations()
-  } catch (error: any) {
-    ElMessage.error('Failed to load conversations')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error))
   } finally {
     isLoading.value = false
   }

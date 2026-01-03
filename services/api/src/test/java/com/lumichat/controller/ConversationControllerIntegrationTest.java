@@ -205,7 +205,7 @@ class ConversationControllerIntegrationTest extends PostgresTestContainerConfig 
         void shouldFailWhenConversationNotFound() throws Exception {
             mockMvc.perform(get("/conversations/99999")
                             .header("Authorization", "Bearer " + user1Token))
-                    .andExpect(status().isInternalServerError()); // RuntimeException -> 500
+                    .andExpect(status().isNotFound()); // NotFoundException -> 404
         }
 
         @Test
@@ -216,7 +216,7 @@ class ConversationControllerIntegrationTest extends PostgresTestContainerConfig 
 
             mockMvc.perform(get("/conversations/" + uc.getConversation().getId())
                             .header("Authorization", "Bearer " + user3Token))
-                    .andExpect(status().isInternalServerError()); // RuntimeException -> 500
+                    .andExpect(status().isNotFound()); // NotFoundException -> 404
         }
     }
 
@@ -278,7 +278,7 @@ class ConversationControllerIntegrationTest extends PostgresTestContainerConfig 
                             .header("Authorization", "Bearer " + user1Token)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestBody))
-                    .andExpect(status().isInternalServerError()); // RuntimeException -> 500
+                    .andExpect(status().isNotFound()); // NotFoundException -> 404
         }
     }
 

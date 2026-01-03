@@ -2,6 +2,7 @@ package com.lumichat.service;
 
 import com.lumichat.dto.response.MessageResponse;
 import com.lumichat.entity.*;
+import com.lumichat.exception.NotFoundException;
 import com.lumichat.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,13 +41,13 @@ public class OfflineMessageService {
         }
 
         User targetUser = userRepository.findById(targetUserId)
-                .orElseThrow(() -> new RuntimeException("Target user not found"));
+                .orElseThrow(() -> new NotFoundException("Target user not found"));
 
         Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new RuntimeException("Message not found"));
+                .orElseThrow(() -> new NotFoundException("Message not found"));
 
         Conversation conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new RuntimeException("Conversation not found"));
+                .orElseThrow(() -> new NotFoundException("Conversation not found"));
 
         OfflineMessage offlineMessage = OfflineMessage.builder()
                 .targetUser(targetUser)
@@ -112,7 +113,7 @@ public class OfflineMessageService {
                 .findByUserIdAndDeviceId(userId, deviceId)
                 .orElseGet(() -> {
                     User user = userRepository.findById(userId)
-                            .orElseThrow(() -> new RuntimeException("User not found"));
+                            .orElseThrow(() -> new NotFoundException("User not found"));
                     return DeviceSyncStatus.builder()
                             .user(user)
                             .deviceId(deviceId)

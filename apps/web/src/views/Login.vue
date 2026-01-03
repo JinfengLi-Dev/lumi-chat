@@ -3,6 +3,7 @@ import { ref, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
+import { getErrorMessage } from '@/utils/errorHandler'
 import type { FormInstance, FormRules } from 'element-plus'
 
 const router = useRouter()
@@ -45,8 +46,8 @@ async function handleLogin() {
     // Redirect to original page or home
     const redirect = route.query.redirect as string
     router.push(redirect || '/')
-  } catch (error: any) {
-    ElMessage.error(error.message || 'Login failed')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error))
   } finally {
     loading.value = false
   }

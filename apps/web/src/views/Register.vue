@@ -3,6 +3,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
+import { getErrorMessage } from '@/utils/errorHandler'
 import type { FormInstance, FormRules } from 'element-plus'
 
 const router = useRouter()
@@ -20,7 +21,7 @@ const form = reactive({
   agreeTerms: false,
 })
 
-const validateConfirmPassword = (_rule: any, value: string, callback: Function) => {
+const validateConfirmPassword = (_rule: unknown, value: string, callback: (error?: Error) => void) => {
   if (value !== form.password) {
     callback(new Error('Passwords do not match'))
   } else {
@@ -50,7 +51,7 @@ const rules: FormRules = {
   ],
   agreeTerms: [
     {
-      validator: (_rule: any, value: boolean, callback: Function) => {
+      validator: (_rule: unknown, value: boolean, callback: (error?: Error) => void) => {
         if (!value) {
           callback(new Error('You must agree to the terms of service'))
         } else {
@@ -77,8 +78,8 @@ async function handleRegister() {
 
     ElMessage.success('Registration successful! Please login.')
     router.push('/login')
-  } catch (error: any) {
-    ElMessage.error(error.message || 'Registration failed')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error))
   } finally {
     loading.value = false
   }

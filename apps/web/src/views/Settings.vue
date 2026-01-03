@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { authApi } from '@/api/auth'
+import { getErrorMessage } from '@/utils/errorHandler'
 import DeviceManagement from '@/components/settings/DeviceManagement.vue'
 import type { FormInstance, FormRules } from 'element-plus'
 
@@ -50,7 +51,7 @@ const passwordRules: FormRules = {
   confirmPassword: [
     { required: true, message: 'Please confirm your new password', trigger: 'blur' },
     {
-      validator: (_rule: any, value: string, callback: Function) => {
+      validator: (_rule: unknown, value: string, callback: (error?: Error) => void) => {
         if (value !== passwordForm.newPassword) {
           callback(new Error('Passwords do not match'))
         } else {
@@ -70,8 +71,8 @@ async function handleUpdateProfile() {
   try {
     await userStore.updateProfile(profileForm)
     ElMessage.success('Profile updated successfully')
-  } catch (error: any) {
-    ElMessage.error(error.message || 'Failed to update profile')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error))
   } finally {
     loading.value = false
   }
@@ -88,8 +89,8 @@ async function handleChangePassword() {
     passwordForm.oldPassword = ''
     passwordForm.newPassword = ''
     passwordForm.confirmPassword = ''
-  } catch (error: any) {
-    ElMessage.error(error.message || 'Failed to change password')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error))
   } finally {
     loading.value = false
   }
@@ -99,8 +100,8 @@ async function handleUploadAvatar(file: File) {
   try {
     await userStore.updateAvatar(file)
     ElMessage.success('Avatar updated successfully')
-  } catch (error: any) {
-    ElMessage.error(error.message || 'Failed to upload avatar')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error))
   }
   return false // Prevent default upload
 }

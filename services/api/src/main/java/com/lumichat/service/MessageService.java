@@ -7,6 +7,9 @@ import com.lumichat.entity.Conversation;
 import com.lumichat.entity.Message;
 import com.lumichat.entity.User;
 import com.lumichat.entity.UserConversation;
+import com.lumichat.exception.BadRequestException;
+import com.lumichat.exception.ForbiddenException;
+import com.lumichat.exception.NotFoundException;
 import com.lumichat.repository.ConversationRepository;
 import com.lumichat.repository.MessageRepository;
 import com.lumichat.repository.UserConversationRepository;
@@ -47,7 +50,7 @@ public class MessageService {
     public List<MessageResponse> getMessages(Long userId, Long conversationId, Long beforeId, int limit) {
         // Get user's conversation settings including clearedAt timestamp
         UserConversation uc = userConversationRepository.findByUserIdAndConversationId(userId, conversationId)
-                .orElseThrow(() -> new RuntimeException("Conversation not found"));
+                .orElseThrow(() -> new NotFoundException("Conversation not found"));
 
         LocalDateTime clearedAt = uc.getClearedAt();
 
@@ -72,20 +75,20 @@ public class MessageService {
     public MessageResponse sendMessage(Long userId, String deviceId, SendMessageRequest request) {
         // Verify user has access to conversation
         userConversationRepository.findByUserIdAndConversationId(userId, request.getConversationId())
-                .orElseThrow(() -> new RuntimeException("Conversation not found"));
+                .orElseThrow(() -> new NotFoundException("Conversation not found"));
 
         Conversation conversation = conversationRepository.findById(request.getConversationId())
-                .orElseThrow(() -> new RuntimeException("Conversation not found"));
+                .orElseThrow(() -> new NotFoundException("Conversation not found"));
 
         User sender = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new NotFoundException("User not found"));
 
         // Parse message type
         Message.MessageType msgType;
         try {
             msgType = Message.MessageType.valueOf(request.getMsgType().toLowerCase());
         } catch (IllegalArgumentException e) {
-            throw new RuntimeException("Invalid message type: " + request.getMsgType());
+            throw new BadRequestException("Invalid message type: " + request.getMsgType());
         }
 
         // Parse client created time
@@ -138,17 +141,17 @@ public class MessageService {
     @Transactional
     public void recallMessage(Long userId, String msgId) {
         Message message = messageRepository.findByMsgId(msgId)
-                .orElseThrow(() -> new RuntimeException("Message not found"));
+                .orElseThrow(() -> new NotFoundException("Message not found"));
 
         // Verify sender
         if (!message.getSender().getId().equals(userId)) {
-            throw new RuntimeException("Cannot recall message sent by another user");
+            throw new ForbiddenException("Cannot recall message sent by another user");
         }
 
         // Check time limit (2 minutes)
         LocalDateTime twoMinutesAgo = LocalDateTime.now().minusMinutes(2);
         if (message.getServerCreatedAt().isBefore(twoMinutesAgo)) {
-            throw new RuntimeException("Cannot recall message after 2 minutes");
+            throw new BadRequestException("Cannot recall message after 2 minutes");
         }
 
         // Mark as recalled
@@ -165,17 +168,17 @@ public class MessageService {
     @Transactional
     public MessageResponse forwardMessage(Long userId, String deviceId, String msgId, Long targetConversationId) {
         Message originalMessage = messageRepository.findByMsgId(msgId)
-                .orElseThrow(() -> new RuntimeException("Message not found"));
+                .orElseThrow(() -> new NotFoundException("Message not found"));
 
         // Verify user has access to target conversation
         userConversationRepository.findByUserIdAndConversationId(userId, targetConversationId)
-                .orElseThrow(() -> new RuntimeException("Target conversation not found"));
+                .orElseThrow(() -> new NotFoundException("Target conversation not found"));
 
         Conversation targetConversation = conversationRepository.findById(targetConversationId)
-                .orElseThrow(() -> new RuntimeException("Target conversation not found"));
+                .orElseThrow(() -> new NotFoundException("Target conversation not found"));
 
         User sender = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new NotFoundException("User not found"));
 
         // Create forwarded message
         Message message = Message.builder()
@@ -214,7 +217,7 @@ public class MessageService {
     public List<MessageResponse> searchMessages(Long userId, Long conversationId, String query, int page, int limit) {
         // Get user's conversation settings including clearedAt timestamp
         UserConversation uc = userConversationRepository.findByUserIdAndConversationId(userId, conversationId)
-                .orElseThrow(() -> new RuntimeException("Conversation not found"));
+                .orElseThrow(() -> new NotFoundException("Conversation not found"));
 
         if (query == null || query.trim().isEmpty()) {
             return List.of();
@@ -234,15 +237,15 @@ public class MessageService {
     @Transactional
     public void deleteMessage(Long userId, String msgId) {
         Message message = messageRepository.findByMsgId(msgId)
-                .orElseThrow(() -> new RuntimeException("Message not found"));
+                .orElseThrow(() -> new NotFoundException("Message not found"));
 
         // Verify user has access to the conversation
         userConversationRepository.findByUserIdAndConversationId(userId, message.getConversation().getId())
-                .orElseThrow(() -> new RuntimeException("Conversation not found"));
+                .orElseThrow(() -> new NotFoundException("Conversation not found"));
 
         // Only sender can delete their own messages
         if (!message.getSender().getId().equals(userId)) {
-            throw new RuntimeException("You can only delete your own messages");
+            throw new ForbiddenException("You can only delete your own messages");
         }
 
         messageRepository.delete(message);

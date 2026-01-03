@@ -34,9 +34,23 @@ public class InternalServiceFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        // Use getServletPath() which excludes the context path (e.g., "/api/v1")
-        // getRequestURI() returns "/api/v1/internal/..." which doesn't match "/internal/" prefix
+        // Determine the request path for matching
+        // In a real servlet container, getServletPath() excludes context path (e.g., "/api/v1")
+        // In MockMvc tests, getServletPath() may be empty, so fall back to getRequestURI()
+        // We also need to strip the context path from URI if present
         String requestPath = request.getServletPath();
+        if (requestPath == null || requestPath.isEmpty()) {
+            // MockMvc or similar test environment - use requestURI but strip context path
+            String uri = request.getRequestURI();
+            String contextPath = request.getContextPath();
+            if (contextPath != null && !contextPath.isEmpty() && uri.startsWith(contextPath)) {
+                requestPath = uri.substring(contextPath.length());
+            } else {
+                requestPath = uri;
+            }
+        }
+
+        log.debug("InternalServiceFilter: checking path={}", requestPath);
 
         // Only process internal service endpoints
         if (!isInternalServicePath(requestPath)) {

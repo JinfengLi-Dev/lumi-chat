@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { friendApi, groupApi, fileApi } from '@/api'
+import { getErrorMessage } from '@/utils/errorHandler'
 import type { Friend } from '@/types'
 import type { GroupDetail } from '@/api/group'
 
@@ -44,8 +45,8 @@ async function loadFriends() {
   isLoading.value = true
   try {
     friends.value = await friendApi.getFriends()
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || 'Failed to load friends')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error))
   } finally {
     isLoading.value = false
   }
@@ -119,8 +120,8 @@ async function createGroup() {
     ElMessage.success('Group created successfully')
     emit('group-created', group)
     handleClose()
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || 'Failed to create group')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error))
   } finally {
     isCreating.value = false
   }

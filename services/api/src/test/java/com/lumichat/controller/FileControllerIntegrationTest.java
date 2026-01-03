@@ -321,7 +321,7 @@ class FileControllerIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(header().string("Content-Disposition", containsString("attachment")))
                     .andExpect(header().string("Content-Disposition", containsString("document.pdf")))
-                    .andExpect(content().contentType(MediaType.APPLICATION_OCTET_STREAM));
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_OCTET_STREAM));
         }
     }
 

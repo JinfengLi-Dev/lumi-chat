@@ -7,6 +7,7 @@ import com.lumichat.dto.response.UserResponse;
 import com.lumichat.entity.Conversation;
 import com.lumichat.entity.User;
 import com.lumichat.entity.UserConversation;
+import com.lumichat.exception.NotFoundException;
 import com.lumichat.repository.ConversationRepository;
 import com.lumichat.repository.MessageRepository;
 import com.lumichat.repository.UserConversationRepository;
@@ -19,6 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -32,16 +36,67 @@ public class ConversationService {
     private final ObjectMapper objectMapper;
 
     /**
-     * Get all conversations for a user
+     * Get all conversations for a user.
+     * Optimized to batch-load users and messages to avoid N+1 queries.
      */
     public List<ConversationResponse> getUserConversations(Long userId) {
         List<UserConversation> userConversations = userConversationRepository
                 .findAllByUserIdOrderByPinnedAndTime(userId);
 
+        if (userConversations.isEmpty()) {
+            return List.of();
+        }
+
+        // Collect all conversation IDs and target user IDs for batch loading
+        List<Long> conversationIds = new ArrayList<>();
+        Set<Long> targetUserIds = new java.util.HashSet<>();
+
+        for (UserConversation uc : userConversations) {
+            Conversation c = uc.getConversation();
+            conversationIds.add(c.getId());
+
+            // For private chats, collect the other participant's ID
+            if (c.getType() == Conversation.ConversationType.private_chat ||
+                c.getType() == Conversation.ConversationType.stranger) {
+                List<Long> participantIds = arrayToList(c.getParticipantIds());
+                participantIds.stream()
+                        .filter(id -> !id.equals(userId))
+                        .findFirst()
+                        .ifPresent(targetUserIds::add);
+            }
+        }
+
+        // Batch load all target users in one query
+        Map<Long, UserResponse> userMap;
+        try {
+            userMap = userRepository.findAllById(targetUserIds).stream()
+                    .collect(Collectors.toMap(User::getId, UserResponse::from));
+        } catch (Exception e) {
+            log.error("Error batch loading users: {}", e.getMessage());
+            userMap = Map.of();
+        }
+
+        // Batch load latest messages for all conversations in one query
+        Map<Long, MessageResponse> lastMessageMap;
+        try {
+            lastMessageMap = messageRepository
+                    .findLatestMessagesForConversations(conversationIds).stream()
+                    .collect(Collectors.toMap(
+                            m -> m.getConversation().getId(),
+                            MessageResponse::fromWithSender,
+                            (m1, m2) -> m1  // In case of duplicates, keep the first
+                    ));
+        } catch (Exception e) {
+            log.error("Error batch loading messages: {}", e.getMessage());
+            lastMessageMap = Map.of();
+        }
+
+        // Build responses using pre-loaded data
         List<ConversationResponse> responses = new ArrayList<>();
         for (UserConversation uc : userConversations) {
             try {
-                ConversationResponse response = buildConversationResponse(uc, userId);
+                ConversationResponse response = buildConversationResponseOptimized(
+                        uc, userId, userMap, lastMessageMap);
                 responses.add(response);
             } catch (Exception e) {
                 log.error("Error building conversation response for conversation {}: {}",
@@ -56,10 +111,10 @@ public class ConversationService {
      */
     public ConversationResponse getConversation(Long userId, Long conversationId) {
         UserConversation uc = userConversationRepository.findByUserIdAndConversationId(userId, conversationId)
-                .orElseThrow(() -> new RuntimeException("Conversation not found"));
+                .orElseThrow(() -> new NotFoundException("Conversation not found"));
 
         if (uc.getIsHidden()) {
-            throw new RuntimeException("Conversation not found");
+            throw new NotFoundException("Conversation not found");
         }
 
         return buildConversationResponse(uc, userId);
@@ -129,7 +184,7 @@ public class ConversationService {
     @Transactional
     public void updateBackground(Long userId, Long conversationId, String backgroundUrl) {
         UserConversation uc = userConversationRepository.findByUserIdAndConversationId(userId, conversationId)
-                .orElseThrow(() -> new RuntimeException("Conversation not found"));
+                .orElseThrow(() -> new NotFoundException("Conversation not found"));
         uc.setBackgroundUrl(backgroundUrl);
         userConversationRepository.save(uc);
         log.info("User {} updated background for conversation {}", userId, conversationId);
@@ -160,7 +215,7 @@ public class ConversationService {
 
         // Create new conversation
         User targetUser = userRepository.findById(targetUserId)
-                .orElseThrow(() -> new RuntimeException("Target user not found"));
+                .orElseThrow(() -> new NotFoundException("Target user not found"));
 
         Long[] participantIdsArray = new Long[]{userId, targetUserId};
 
@@ -172,7 +227,7 @@ public class ConversationService {
 
         // Create user conversation entries for both users
         User currentUser = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("Current user not found"));
+                .orElseThrow(() -> new NotFoundException("Current user not found"));
 
         UserConversation uc1 = UserConversation.builder()
                 .user(currentUser)
@@ -219,7 +274,7 @@ public class ConversationService {
 
         // Create new conversation with stranger type
         User targetUser = userRepository.findById(targetUserId)
-                .orElseThrow(() -> new RuntimeException("Target user not found"));
+                .orElseThrow(() -> new NotFoundException("Target user not found"));
 
         Long[] participantIdsArray = new Long[]{userId, targetUserId};
 
@@ -231,7 +286,7 @@ public class ConversationService {
 
         // Create user conversation entries for both users
         User currentUser = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("Current user not found"));
+                .orElseThrow(() -> new NotFoundException("Current user not found"));
 
         UserConversation uc1 = UserConversation.builder()
                 .user(currentUser)
@@ -252,7 +307,51 @@ public class ConversationService {
     }
 
     /**
-     * Build a conversation response with all details
+     * Build a conversation response using pre-loaded data.
+     * Used by getUserConversations() for optimized batch loading.
+     */
+    private ConversationResponse buildConversationResponseOptimized(
+            UserConversation uc,
+            Long currentUserId,
+            Map<Long, UserResponse> userMap,
+            Map<Long, MessageResponse> lastMessageMap) {
+
+        Conversation c = uc.getConversation();
+        UserResponse targetUser = null;
+        MessageResponse lastMessage = null;
+
+        // Get target user from pre-loaded map for private chats
+        if (c.getType() == Conversation.ConversationType.private_chat ||
+            c.getType() == Conversation.ConversationType.stranger) {
+            List<Long> participantIds = arrayToList(c.getParticipantIds());
+            Long targetUserId = participantIds.stream()
+                    .filter(id -> !id.equals(currentUserId))
+                    .findFirst()
+                    .orElse(null);
+
+            if (targetUserId != null) {
+                targetUser = userMap.get(targetUserId);
+            }
+        }
+
+        // Get last message from pre-loaded map
+        // Note: We don't filter by clearedAt here as the batch query doesn't support it
+        // For the conversation list, showing the latest message is acceptable
+        lastMessage = lastMessageMap.get(c.getId());
+
+        // If the message is before clearedAt, don't show it
+        if (lastMessage != null && uc.getClearedAt() != null &&
+            lastMessage.getServerCreatedAt() != null &&
+            lastMessage.getServerCreatedAt().isBefore(uc.getClearedAt())) {
+            lastMessage = null;
+        }
+
+        return ConversationResponse.from(uc, targetUser, lastMessage);
+    }
+
+    /**
+     * Build a conversation response with all details.
+     * Used for single conversation lookups where batch loading isn't needed.
      */
     private ConversationResponse buildConversationResponse(UserConversation uc, Long currentUserId) {
         Conversation c = uc.getConversation();
@@ -269,8 +368,6 @@ public class ConversationService {
                     .orElse(null);
 
             if (targetUserId != null) {
-                userRepository.findById(targetUserId)
-                        .ifPresent(user -> {});
                 targetUser = userRepository.findById(targetUserId)
                         .map(UserResponse::from)
                         .orElse(null);

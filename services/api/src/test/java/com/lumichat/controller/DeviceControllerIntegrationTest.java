@@ -166,11 +166,10 @@ class DeviceControllerIntegrationTest {
         @Test
         @DisplayName("Should fail when trying to logout current device")
         void shouldFailWhenLogoutCurrentDevice() throws Exception {
-            // DeviceService throws RuntimeException which results in 500
-            // TODO: Should be refactored to throw BadRequestException
+            // This returns 400 Bad Request - deleting current device should use logout instead
             mockMvc.perform(delete("/devices/" + user1DeviceId)
                             .header("Authorization", "Bearer " + user1Token))
-                    .andExpect(status().isInternalServerError());
+                    .andExpect(status().isBadRequest()); // BadRequestException -> 400
         }
 
         @Test

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { friendApi } from '@/api'
+import { getErrorMessage } from '@/utils/errorHandler'
 import type { FriendRequest } from '@/types'
 
 const props = defineProps<{
@@ -26,8 +27,8 @@ async function loadRequests() {
   isLoading.value = true
   try {
     requests.value = await friendApi.getFriendRequests(true)
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || 'Failed to load requests')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error))
   } finally {
     isLoading.value = false
   }
@@ -40,8 +41,8 @@ async function acceptRequest(request: FriendRequest) {
     ElMessage.success(`Added ${request.fromUser.nickname} as friend`)
     requests.value = requests.value.filter((r) => r.id !== request.id)
     emit('request-handled')
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || 'Failed to accept request')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error))
   } finally {
     processingIds.value.delete(request.id)
   }
@@ -63,9 +64,9 @@ async function rejectRequest(request: FriendRequest) {
     await friendApi.rejectFriendRequest(request.id)
     ElMessage.success('Request rejected')
     requests.value = requests.value.filter((r) => r.id !== request.id)
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error !== 'cancel') {
-      ElMessage.error(error.response?.data?.message || 'Failed to reject request')
+      ElMessage.error(getErrorMessage(error))
     }
   } finally {
     processingIds.value.delete(request.id)
