@@ -62,7 +62,8 @@ public class UserService {
             try {
                 user.setGender(User.Gender.valueOf(request.getGender().toLowerCase()));
             } catch (IllegalArgumentException e) {
-                log.warn("Invalid gender value: {}", request.getGender());
+                throw new BadRequestException("Invalid gender value: " + request.getGender() +
+                    ". Valid values are: male, female, unknown");
             }
         }
 

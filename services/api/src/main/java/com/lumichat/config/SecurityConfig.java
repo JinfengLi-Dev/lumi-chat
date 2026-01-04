@@ -2,6 +2,7 @@ package com.lumichat.config;
 
 import com.lumichat.security.InternalServiceFilter;
 import com.lumichat.security.JwtAuthenticationFilter;
+import com.lumichat.security.RateLimitFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -29,6 +30,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final InternalServiceFilter internalServiceFilter;
+    private final RateLimitFilter rateLimitFilter;
 
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
@@ -60,6 +62,7 @@ public class SecurityConfig {
                 .requestMatchers("/sync/queue").permitAll()
                 .anyRequest().authenticated()
             )
+            .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(internalServiceFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

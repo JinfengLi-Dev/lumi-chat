@@ -21,7 +21,11 @@
       "Bash(TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock DOCKER_HOST=unix:///var/run/docker.sock ./gradlew test:*)",
       "Bash(grep:*)",
       "Bash(ls:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(./gradlew clean:*)",
+      "Bash(python3:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npm run test:*)"
     ],
     "deny": [],
     "ask": []

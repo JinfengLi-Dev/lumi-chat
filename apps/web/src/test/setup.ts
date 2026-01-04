@@ -6,6 +6,18 @@ import ElementPlus from 'element-plus'
 // Create a fresh Pinia instance for each test
 beforeEach(() => {
   setActivePinia(createPinia())
+
+  // Clear localStorage mock calls between tests
+  vi.mocked(localStorage.getItem).mockClear()
+  vi.mocked(localStorage.setItem).mockClear()
+  vi.mocked(localStorage.removeItem).mockClear()
+  vi.mocked(localStorage.clear).mockClear()
+})
+
+// Clean up after each test
+afterEach(() => {
+  // Reset all mocks
+  vi.clearAllMocks()
 })
 
 // Mock Element Plus globally

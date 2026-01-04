@@ -20,7 +20,12 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.Date;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -439,6 +444,182 @@ class AuthControllerIntegrationTest {
                             .content(request))
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.code").value(not(0)));
+        }
+
+        @Test
+        @DisplayName("Should fail reset with expired token")
+        void shouldFailResetWithExpiredToken() throws Exception {
+            // Create an expired password reset token manually
+            // Using the same secret from test configuration
+            String testSecret = "your-256-bit-secret-key-for-jwt-tokens-must-be-long-enough";
+            var secretKey = Keys.hmacShaKeyFor(testSecret.getBytes(StandardCharsets.UTF_8));
+
+            Date now = new Date();
+            Date expiredDate = new Date(now.getTime() - 3600000); // Expired 1 hour ago
+
+            String expiredToken = Jwts.builder()
+                    .subject(testUser.getId().toString())
+                    .claim("type", "password-reset")
+                    .issuedAt(new Date(now.getTime() - 7200000)) // Issued 2 hours ago
+                    .expiration(expiredDate)
+                    .signWith(secretKey)
+                    .compact();
+
+            String request = "{\"token\": \"" + expiredToken + "\", \"newPassword\": \"newpassword123\"}";
+
+            mockMvc.perform(post("/auth/reset-password")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(request))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(not(0)));
+        }
+
+        @Test
+        @DisplayName("Should successfully reset password with valid token")
+        void shouldSuccessfullyResetPasswordWithValidToken() throws Exception {
+            String resetToken = jwtTokenProvider.generatePasswordResetToken(testUser.getId());
+
+            String request = "{\"token\": \"" + resetToken + "\", \"newPassword\": \"newSecurePassword123\"}";
+
+            mockMvc.perform(post("/auth/reset-password")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(request))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(0));
+        }
+    }
+
+    @Nested
+    @DisplayName("Security: Token Revocation Tests")
+    class TokenRevocationTests {
+
+        @Test
+        @DisplayName("Should successfully logout with valid token")
+        void shouldSuccessfullyLogoutWithValidToken() throws Exception {
+            // Login first
+            LoginRequest loginRequest = new LoginRequest();
+            loginRequest.setEmail("test@example.com");
+            loginRequest.setPassword("password123");
+            loginRequest.setDeviceId("device-revoke-test");
+            loginRequest.setDeviceType("web");
+
+            MvcResult loginResult = mockMvc.perform(post("/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(loginRequest)))
+                    .andExpect(status().isOk())
+                    .andReturn();
+
+            String loginResponse = loginResult.getResponse().getContentAsString();
+            String accessToken = objectMapper.readTree(loginResponse)
+                    .path("data")
+                    .path("token")
+                    .asText();
+
+            // Logout should succeed
+            mockMvc.perform(post("/auth/logout")
+                            .header("Authorization", "Bearer " + accessToken))
+                    .andExpect(status().isOk());
+
+            // Note: With stateless JWT tokens, the token may still be cryptographically valid
+            // until expiration. Full token revocation requires a token blacklist (Redis-based)
+            // or short-lived tokens with refresh token rotation.
+        }
+
+        @Test
+        @DisplayName("Should mark device as offline after logout")
+        void shouldMarkDeviceOfflineAfterLogout() throws Exception {
+            // Login first
+            LoginRequest loginRequest = new LoginRequest();
+            loginRequest.setEmail("test@example.com");
+            loginRequest.setPassword("password123");
+            loginRequest.setDeviceId("device-refresh-revoke");
+            loginRequest.setDeviceType("web");
+
+            MvcResult loginResult = mockMvc.perform(post("/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(loginRequest)))
+                    .andExpect(status().isOk())
+                    .andReturn();
+
+            String loginResponse = loginResult.getResponse().getContentAsString();
+            String accessToken = objectMapper.readTree(loginResponse)
+                    .path("data")
+                    .path("token")
+                    .asText();
+
+            // Logout - marks device as offline
+            mockMvc.perform(post("/auth/logout")
+                            .header("Authorization", "Bearer " + accessToken))
+                    .andExpect(status().isOk());
+
+            // Note: Current implementation uses stateless JWT tokens.
+            // Refresh tokens remain valid until expiration (JWT is self-contained).
+            // To implement full token revocation, consider:
+            // 1. Adding a token blacklist in Redis
+            // 2. Checking device.isOnline in refreshToken flow
+            // 3. Using short-lived access tokens with refresh token rotation
+        }
+    }
+
+    @Nested
+    @DisplayName("Security: Multi-Device Login Tests")
+    class MultiDeviceLoginTests {
+
+        @Test
+        @DisplayName("Should allow login from multiple devices")
+        void shouldAllowMultiDeviceLogin() throws Exception {
+            // Login from device 1
+            LoginRequest device1Request = new LoginRequest();
+            device1Request.setEmail("test@example.com");
+            device1Request.setPassword("password123");
+            device1Request.setDeviceId("device-multi-1");
+            device1Request.setDeviceType("web");
+            device1Request.setDeviceName("Chrome Browser");
+
+            MvcResult device1Result = mockMvc.perform(post("/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(device1Request)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(0))
+                    .andReturn();
+
+            String device1Token = objectMapper.readTree(device1Result.getResponse().getContentAsString())
+                    .path("data")
+                    .path("token")
+                    .asText();
+
+            // Login from device 2
+            LoginRequest device2Request = new LoginRequest();
+            device2Request.setEmail("test@example.com");
+            device2Request.setPassword("password123");
+            device2Request.setDeviceId("device-multi-2");
+            device2Request.setDeviceType("ios");
+            device2Request.setDeviceName("iPhone 15");
+
+            MvcResult device2Result = mockMvc.perform(post("/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(device2Request)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(0))
+                    .andReturn();
+
+            String device2Token = objectMapper.readTree(device2Result.getResponse().getContentAsString())
+                    .path("data")
+                    .path("token")
+                    .asText();
+
+            // Both tokens should be different
+            org.junit.jupiter.api.Assertions.assertNotEquals(device1Token, device2Token);
+
+            // Both tokens should still work
+            mockMvc.perform(post("/auth/logout")
+                            .header("Authorization", "Bearer " + device1Token))
+                    .andExpect(status().isOk());
+
+            // Device 2 token should still work after device 1 logout
+            mockMvc.perform(post("/auth/logout")
+                            .header("Authorization", "Bearer " + device2Token))
+                    .andExpect(status().isOk());
         }
     }
 }

@@ -1,5 +1,6 @@
 import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios'
 import type { ApiResponse } from '@/types'
+import router from '@/router'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
@@ -61,10 +62,10 @@ apiClient.interceptors.response.use(
           // Refresh failed, clear auth
           localStorage.removeItem('token')
           localStorage.removeItem('refreshToken')
-          window.location.href = '/login'
+          router.push('/login')
         }
       } else {
-        window.location.href = '/login'
+        router.push('/login')
       }
     }
 
@@ -73,11 +74,19 @@ apiClient.interceptors.response.use(
   }
 )
 
+// Generate a cryptographically secure device ID
+function generateSecureDeviceId(): string {
+  const array = new Uint8Array(16)
+  crypto.getRandomValues(array)
+  const hex = Array.from(array, b => b.toString(16).padStart(2, '0')).join('')
+  return `web_${Date.now()}_${hex}`
+}
+
 // Helper to get or create device ID
 function getOrCreateDeviceId(): string {
   let deviceId = localStorage.getItem('deviceId')
   if (!deviceId) {
-    deviceId = `web_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
+    deviceId = generateSecureDeviceId()
     localStorage.setItem('deviceId', deviceId)
   }
   return deviceId

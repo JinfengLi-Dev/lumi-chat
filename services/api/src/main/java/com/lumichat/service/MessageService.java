@@ -22,6 +22,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
@@ -40,6 +41,7 @@ public class MessageService {
     private final UserRepository userRepository;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final Clock clock;
 
     private static final String REDIS_CHANNEL_MESSAGES = "im:messages";
 
@@ -149,13 +151,14 @@ public class MessageService {
         }
 
         // Check time limit (2 minutes)
-        LocalDateTime twoMinutesAgo = LocalDateTime.now().minusMinutes(2);
+        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime twoMinutesAgo = now.minusMinutes(2);
         if (message.getServerCreatedAt().isBefore(twoMinutesAgo)) {
             throw new BadRequestException("Cannot recall message after 2 minutes");
         }
 
         // Mark as recalled
-        message.setRecalledAt(LocalDateTime.now());
+        message.setRecalledAt(now);
         message.setMsgType(Message.MessageType.recall);
         messageRepository.save(message);
 

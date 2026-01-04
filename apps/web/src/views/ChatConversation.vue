@@ -110,6 +110,11 @@ const sendTypingNotification = useDebounceFn(() => {
   }
 }, 1000, { maxWait: 2000 })
 
+// Debounced read receipt sender to prevent rapid-fire calls
+const debouncedSendReadReceipt = useDebounceFn(() => {
+  sendReadReceipt()
+}, 500)
+
 const conversationId = computed(() => Number(route.params.id))
 const conversation = computed(() => chatStore.currentConversation)
 const messages = computed(() => chatStore.currentMessages)
@@ -133,10 +138,8 @@ watch(
   () => messages.value.length,
   (newLen, oldLen) => {
     if (newLen > (oldLen ?? 0) && conversationId.value) {
-      // New message arrived, send read receipt after a short delay
-      setTimeout(() => {
-        sendReadReceipt()
-      }, 500)
+      // New message arrived, send debounced read receipt
+      debouncedSendReadReceipt()
     }
   }
 )

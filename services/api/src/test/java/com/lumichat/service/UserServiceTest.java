@@ -223,24 +223,22 @@ class UserServiceTest {
         }
 
         @Test
-        @DisplayName("Should handle invalid gender gracefully")
-        void shouldHandleInvalidGenderGracefully() {
+        @DisplayName("Should throw BadRequestException for invalid gender")
+        void shouldThrowBadRequestExceptionForInvalidGender() {
             // Given
             UpdateProfileRequest request = new UpdateProfileRequest();
             request.setGender("invalid");
 
             when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
-            when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-            // When
-            userService.updateProfile(1L, request);
+            // When/Then - should throw BadRequestException for invalid gender value
+            assertThatThrownBy(() -> userService.updateProfile(1L, request))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("Invalid gender value: invalid")
+                    .hasMessageContaining("Valid values are: male, female, unknown");
 
-            // Then
-            ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
-            verify(userRepository).save(userCaptor.capture());
-
-            User savedUser = userCaptor.getValue();
-            assertThat(savedUser.getGender()).isEqualTo(User.Gender.male); // Unchanged
+            // Verify save was NOT called since validation failed
+            verify(userRepository, never()).save(any(User.class));
         }
     }
 

@@ -28,7 +28,10 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -62,7 +65,8 @@ class MessageServiceTest {
     @Mock
     private ObjectMapper objectMapper;
 
-    @InjectMocks
+    private Clock fixedClock;
+
     private MessageService messageService;
 
     private User testUser;
@@ -73,6 +77,21 @@ class MessageServiceTest {
 
     @BeforeEach
     void setUp() {
+        // Fixed clock for deterministic time-based testing
+        Instant fixedInstant = Instant.parse("2025-01-15T10:00:00Z");
+        fixedClock = Clock.fixed(fixedInstant, ZoneId.systemDefault());
+
+        // Manually construct MessageService with fixed clock
+        messageService = new MessageService(
+                messageRepository,
+                conversationRepository,
+                userConversationRepository,
+                userRepository,
+                redisTemplate,
+                objectMapper,
+                fixedClock
+        );
+
         testUser = User.builder()
                 .id(1L)
                 .uid("LC12345678")
@@ -385,8 +404,9 @@ class MessageServiceTest {
         @Test
         @DisplayName("Should recall message successfully")
         void shouldRecallMessageSuccessfully() {
-            // Given
-            testMessage.setServerCreatedAt(LocalDateTime.now()); // Recent message
+            // Given - message sent 1 minute ago (within 2 minute limit)
+            LocalDateTime now = LocalDateTime.now(fixedClock);
+            testMessage.setServerCreatedAt(now.minusMinutes(1));
             when(messageRepository.findByMsgId("msg-123456")).thenReturn(Optional.of(testMessage));
             when(messageRepository.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -430,8 +450,9 @@ class MessageServiceTest {
         @Test
         @DisplayName("Should throw exception when recall time limit exceeded")
         void shouldThrowExceptionWhenRecallTimeLimitExceeded() {
-            // Given
-            testMessage.setServerCreatedAt(LocalDateTime.now().minusMinutes(5)); // 5 minutes ago
+            // Given - message sent 5 minutes ago (exceeds 2 minute limit)
+            LocalDateTime now = LocalDateTime.now(fixedClock);
+            testMessage.setServerCreatedAt(now.minusMinutes(5));
             when(messageRepository.findByMsgId("msg-123456")).thenReturn(Optional.of(testMessage));
 
             // When/Then

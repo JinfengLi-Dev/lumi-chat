@@ -131,6 +131,8 @@ onMounted(() => {
 .friends-content {
   flex: 1;
   overflow-y: auto;
+  /* Performance optimization: contain layout to prevent repaints */
+  contain: layout style;
 }
 
 .empty-state {

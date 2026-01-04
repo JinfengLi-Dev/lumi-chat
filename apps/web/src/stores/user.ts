@@ -34,10 +34,13 @@ export const useUserStore = defineStore('user', {
     async login(credentials: { email: string; password: string; rememberMe?: boolean }) {
       this.loading = true
       try {
-        // Generate or retrieve device ID
+        // Generate or retrieve device ID using crypto API for security
         let deviceId = localStorage.getItem('deviceId')
         if (!deviceId) {
-          deviceId = `web_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+          const array = new Uint8Array(16)
+          crypto.getRandomValues(array)
+          const hex = Array.from(array, b => b.toString(16).padStart(2, '0')).join('')
+          deviceId = `web_${Date.now()}_${hex}`
           localStorage.setItem('deviceId', deviceId)
         }
 

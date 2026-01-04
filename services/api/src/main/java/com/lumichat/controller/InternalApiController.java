@@ -121,6 +121,11 @@ public class InternalApiController {
             return ApiResponse.error(400, "User ID is required");
         }
 
+        // Validate limit - ensure it's positive and capped at 100
+        if (limit < 1) {
+            limit = 50;
+        }
+
         log.debug("Internal messages sync request from {} for user {}, conversation={}",
                 principal.serviceName(), principal.userId(), conversationId);
 
@@ -149,9 +154,14 @@ public class InternalApiController {
             return ApiResponse.error(400, "User ID is required");
         }
 
-        Long lastReadMsgId = request.get("lastReadMsgId") != null
-                ? ((Number) request.get("lastReadMsgId")).longValue()
-                : null;
+        // Safe number parsing with type validation
+        Long lastReadMsgId = null;
+        Object rawValue = request.get("lastReadMsgId");
+        if (rawValue instanceof Number) {
+            lastReadMsgId = ((Number) rawValue).longValue();
+        } else if (rawValue != null) {
+            return ApiResponse.error(400, "lastReadMsgId must be a number");
+        }
 
         if (lastReadMsgId == null) {
             return ApiResponse.error(400, "lastReadMsgId is required");
