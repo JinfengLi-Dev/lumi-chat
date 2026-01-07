@@ -29,6 +29,11 @@ const rules: FormRules = {
   ],
 }
 
+function fillDemo(email: string, password: string) {
+  form.email = email
+  form.password = password
+}
+
 async function handleLogin() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -114,6 +119,49 @@ async function handleLogin() {
         Don't have an account?
         <router-link to="/register">Register now</router-link>
       </div>
+
+      <el-divider>Demo Accounts</el-divider>
+
+      <div class="demo-credentials">
+        <div class="demo-account" @click="fillDemo('alice@demo.com', 'demo123')">
+          <el-tag type="info" size="small">Alice</el-tag>
+          <span class="demo-info">alice@demo.com / demo123</span>
+        </div>
+        <div class="demo-account" @click="fillDemo('bob@demo.com', 'demo123')">
+          <el-tag type="success" size="small">Bob</el-tag>
+          <span class="demo-info">bob@demo.com / demo123</span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.demo-credentials {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.demo-account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.demo-account:hover {
+  background-color: var(--el-fill-color-light);
+  border-color: var(--el-color-primary-light-5);
+}
+
+.demo-info {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+</style>

@@ -191,6 +191,13 @@ export const useChatStore = defineStore('chat', {
           this.messages.set(conversationId, [...updated])
         }
 
+        // Update conversation's lastMessage so sender's conversation list shows the sent message
+        const conv = this.conversations.find((c: Conversation) => c.id === conversationId)
+        if (conv) {
+          conv.lastMessage = sent
+          conv.lastMsgTime = sent.serverCreatedAt
+        }
+
         return sent
       } catch (error) {
         const updated = this.messages.get(conversationId) || []
