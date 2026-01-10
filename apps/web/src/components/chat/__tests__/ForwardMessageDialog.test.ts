@@ -145,7 +145,7 @@ describe('ForwardMessageDialog', () => {
       await wrapper.setProps({ modelValue: true })
       await flushPromises()
 
-      expect(ElMessage.error).toHaveBeenCalledWith('Failed to load conversations')
+      expect(ElMessage.error).toHaveBeenCalledWith('Network error')
       wrapper.unmount()
     })
   })

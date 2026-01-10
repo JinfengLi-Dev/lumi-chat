@@ -3,6 +3,7 @@ import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
+import { useThemeStore, type ThemeMode } from '@/stores/theme'
 import { authApi } from '@/api/auth'
 import { getErrorMessage } from '@/utils/errorHandler'
 import DeviceManagement from '@/components/settings/DeviceManagement.vue'
@@ -11,6 +12,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 
 const router = useRouter()
 const userStore = useUserStore()
+const themeStore = useThemeStore()
 
 // Browser info for About section
 const platformInfo = computed(() => navigator.platform)
@@ -107,6 +109,12 @@ async function handleUploadAvatar(file: File) {
   return false // Prevent default upload
 }
 
+function handleThemeChange(val: string | number | boolean | undefined) {
+  if (typeof val === 'string' && ['light', 'dark', 'system'].includes(val)) {
+    themeStore.setMode(val as ThemeMode)
+  }
+}
+
 </script>
 
 <template>
@@ -135,6 +143,14 @@ async function handleUploadAvatar(file: File) {
         >
           <el-icon><Lock /></el-icon>
           <span>Password</span>
+        </div>
+        <div
+          class="menu-item"
+          :class="{ active: activeTab === 'appearance' }"
+          @click="activeTab = 'appearance'"
+        >
+          <el-icon><Sunny /></el-icon>
+          <span>Appearance</span>
         </div>
         <div
           class="menu-item"
@@ -281,6 +297,56 @@ async function handleUploadAvatar(file: File) {
         <QuickReplySettings />
       </div>
 
+      <!-- Appearance Tab -->
+      <div v-if="activeTab === 'appearance'" class="settings-section">
+        <h2>Appearance</h2>
+        <p class="section-desc">Customize how Lumi Chat looks</p>
+
+        <div class="appearance-settings">
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Theme</span>
+              <span class="setting-desc">Choose your preferred color scheme</span>
+            </div>
+            <el-radio-group
+              :model-value="themeStore.mode"
+              @change="handleThemeChange"
+            >
+              <el-radio-button value="light">
+                <el-icon><Sunny /></el-icon>
+                Light
+              </el-radio-button>
+              <el-radio-button value="dark">
+                <el-icon><Moon /></el-icon>
+                Dark
+              </el-radio-button>
+              <el-radio-button value="system">
+                <el-icon><Monitor /></el-icon>
+                System
+              </el-radio-button>
+            </el-radio-group>
+          </div>
+
+          <div class="theme-preview">
+            <div class="preview-label">Preview</div>
+            <div class="preview-card" :class="{ 'dark-preview': themeStore.isDark }">
+              <div class="preview-header">
+                <div class="preview-avatar"></div>
+                <div class="preview-title">Chat Preview</div>
+              </div>
+              <div class="preview-messages">
+                <div class="preview-message other">
+                  <div class="preview-bubble">Hello!</div>
+                </div>
+                <div class="preview-message self">
+                  <div class="preview-bubble">Hi there!</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- About Tab -->
       <div v-if="activeTab === 'about'" class="settings-section">
         <h2>About Lumi Chat</h2>
@@ -314,13 +380,15 @@ async function handleUploadAvatar(file: File) {
 .settings-page {
   display: flex;
   height: 100vh;
-  background-color: #f5f7fa;
+  background-color: var(--lc-bg-page);
+  transition: background-color 0.3s ease;
 }
 
 .settings-sidebar {
   width: 250px;
-  background-color: #fff;
-  border-right: 1px solid #e4e7ed;
+  background-color: var(--lc-bg-white);
+  border-right: 1px solid var(--lc-border-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .settings-header {
@@ -329,9 +397,10 @@ async function handleUploadAvatar(file: File) {
   display: flex;
   align-items: center;
   gap: 15px;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--lc-border-color);
   font-size: 16px;
   font-weight: 500;
+  color: var(--lc-text-primary);
 }
 
 .settings-menu {
@@ -344,17 +413,17 @@ async function handleUploadAvatar(file: File) {
   gap: 12px;
   padding: 12px 20px;
   cursor: pointer;
-  color: #606266;
+  color: var(--lc-text-regular);
   transition: all 0.2s;
 }
 
 .menu-item:hover {
-  background-color: #f5f7fa;
+  background-color: var(--lc-bg-hover);
 }
 
 .menu-item.active {
-  background-color: #ecf5ff;
-  color: #409eff;
+  background-color: var(--lc-bg-active);
+  color: var(--lc-primary);
 }
 
 .settings-content {
@@ -365,11 +434,11 @@ async function handleUploadAvatar(file: File) {
 
 .settings-section h2 {
   margin-bottom: 10px;
-  color: #303133;
+  color: var(--lc-text-primary);
 }
 
 .section-desc {
-  color: #909399;
+  color: var(--lc-text-secondary);
   margin-bottom: 30px;
 }
 
@@ -408,19 +477,20 @@ async function handleUploadAvatar(file: File) {
 .avatar-tip {
   margin-top: 10px;
   font-size: 12px;
-  color: #909399;
+  color: var(--lc-text-secondary);
 }
 
 .about-info {
-  background-color: #fff;
+  background-color: var(--lc-bg-white);
   padding: 20px;
   border-radius: 8px;
+  transition: background-color 0.3s ease;
 }
 
 .about-item {
   display: flex;
   padding: 10px 0;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--lc-border-color);
 }
 
 .about-item:last-child {
@@ -429,6 +499,136 @@ async function handleUploadAvatar(file: File) {
 
 .about-item .label {
   width: 100px;
-  color: #909399;
+  color: var(--lc-text-secondary);
+}
+
+/* Appearance Settings */
+.appearance-settings {
+  max-width: 600px;
+}
+
+.setting-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px;
+  background-color: var(--lc-bg-white);
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.setting-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.setting-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--lc-text-primary);
+}
+
+.setting-desc {
+  font-size: 13px;
+  color: var(--lc-text-secondary);
+}
+
+.theme-preview {
+  margin-top: 20px;
+}
+
+.preview-label {
+  font-size: 13px;
+  color: var(--lc-text-secondary);
+  margin-bottom: 12px;
+}
+
+.preview-card {
+  width: 300px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--lc-shadow);
+  background-color: #f5f7fa;
+  transition: all 0.3s ease;
+}
+
+.preview-card.dark-preview {
+  background-color: #1a1a1a;
+}
+
+.preview-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background-color: #fff;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+.dark-preview .preview-header {
+  background-color: #242424;
+  border-bottom-color: #3a3a3a;
+}
+
+.preview-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  background-color: #409eff;
+}
+
+.preview-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #303133;
+}
+
+.dark-preview .preview-title {
+  color: #e5e5e5;
+}
+
+.preview-messages {
+  padding: 16px;
+}
+
+.preview-message {
+  margin-bottom: 12px;
+}
+
+.preview-message:last-child {
+  margin-bottom: 0;
+}
+
+.preview-message.self {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.preview-bubble {
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  max-width: 70%;
+}
+
+.preview-message.other .preview-bubble {
+  background-color: #fff;
+  color: #303133;
+}
+
+.dark-preview .preview-message.other .preview-bubble {
+  background-color: #2c2c2c;
+  color: #e5e5e5;
+}
+
+.preview-message.self .preview-bubble {
+  background-color: #95ec69;
+  color: #303133;
+}
+
+.dark-preview .preview-message.self .preview-bubble {
+  background-color: #2d5a1e;
+  color: #e5e5e5;
 }
 </style>

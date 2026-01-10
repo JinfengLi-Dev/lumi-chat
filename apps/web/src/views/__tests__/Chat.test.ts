@@ -5,11 +5,20 @@ import Chat from '../Chat.vue'
 
 // Mock Vue Router
 const mockPush = vi.fn()
-vi.mock('vue-router', () => ({
-  useRouter: () => ({
-    push: mockPush,
-  }),
-}))
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-router')>()
+  return {
+    ...actual,
+    useRouter: () => ({
+      push: mockPush,
+    }),
+    useRoute: () => ({
+      path: '/chat',
+      params: {},
+      query: {},
+    }),
+  }
+})
 
 // Mock Element Plus
 vi.mock('element-plus', async () => {

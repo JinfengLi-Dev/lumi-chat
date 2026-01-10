@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
+import { useThemeStore } from '@/stores/theme'
 
 const userStore = useUserStore()
+const themeStore = useThemeStore()
 
 onMounted(async () => {
+  // Initialize theme
+  themeStore.init()
+
   // Try to restore session on app load
   if (userStore.token && !userStore.isLoggedIn) {
     try {
