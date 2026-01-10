@@ -21,6 +21,8 @@ public class UserResponse {
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime lastLoginAt;
+    private String voiceIntroUrl;
+    private Integer voiceIntroDuration;
 
     public static UserResponse from(User user) {
         return UserResponse.builder()
@@ -35,6 +37,8 @@ public class UserResponse {
                 .status(user.getStatus().name())
                 .createdAt(user.getCreatedAt())
                 .lastLoginAt(user.getLastLoginAt())
+                .voiceIntroUrl(user.getVoiceIntroUrl())
+                .voiceIntroDuration(user.getVoiceIntroDuration())
                 .build();
     }
 }

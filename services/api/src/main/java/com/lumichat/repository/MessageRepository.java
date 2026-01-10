@@ -72,6 +72,17 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
             @Param("clearedAt") LocalDateTime clearedAt,
             Pageable pageable);
 
+    @Query("SELECT m FROM Message m WHERE m.conversation.id = :conversationId " +
+           "AND m.msgType IN :msgTypes " +
+           "AND m.recalledAt IS NULL " +
+           "AND m.serverCreatedAt > COALESCE(:clearedAt, CAST('1970-01-01' AS timestamp)) " +
+           "ORDER BY m.serverCreatedAt DESC")
+    Page<Message> findByConversationIdAndMsgTypesAfterClearedAt(
+            @Param("conversationId") Long conversationId,
+            @Param("msgTypes") List<String> msgTypes,
+            @Param("clearedAt") LocalDateTime clearedAt,
+            Pageable pageable);
+
     /**
      * Batch fetch latest message for each conversation.
      * Uses a subquery to get the max serverCreatedAt for each conversation,

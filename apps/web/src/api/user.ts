@@ -44,4 +44,19 @@ export const userApi = {
     const response = await apiClient.get<ApiResponse<User>>(`/users/${uid}`)
     return response.data.data
   },
+
+  async uploadVoiceIntro(file: File, duration?: number): Promise<User> {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (duration !== undefined) {
+      formData.append('duration', String(Math.round(duration)))
+    }
+    const response = await apiClient.post<ApiResponse<User>>('/users/me/voice-intro', formData)
+    return response.data.data
+  },
+
+  async deleteVoiceIntro(): Promise<User> {
+    const response = await apiClient.delete<ApiResponse<User>>('/users/me/voice-intro')
+    return response.data.data
+  },
 }

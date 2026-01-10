@@ -23,6 +23,9 @@ import GroupCardPicker from '@/components/chat/GroupCardPicker.vue'
 import TypingIndicator from '@/components/chat/TypingIndicator.vue'
 import MessageStatus from '@/components/chat/MessageStatus.vue'
 import FileMessage from '@/components/chat/FileMessage.vue'
+import QuickReplyPanel from '@/components/chat/QuickReplyPanel.vue'
+import VoiceRecorder from '@/components/chat/VoiceRecorder.vue'
+import PhotoAlbumPanel from '@/components/chat/PhotoAlbumPanel.vue'
 import { getErrorMessage } from '@/utils/errorHandler'
 
 const route = useRoute()
@@ -55,6 +58,12 @@ const quotedMessage = ref<Message | null>(null)
 
 // Emoji picker state
 const showEmojiPicker = ref(false)
+
+// Quick reply panel state
+const showQuickReplyPanel = ref(false)
+
+// Voice recorder state
+const showVoiceRecorder = ref(false)
 
 // Image lightbox state
 const lightboxVisible = ref(false)
@@ -371,6 +380,58 @@ async function uploadAndSendFile(file: File, type: 'image' | 'file') {
 function handleEmojiSelect(emoji: string) {
   messageInput.value += emoji
   showEmojiPicker.value = false
+}
+
+// Quick reply handler
+function handleQuickReplySelect(content: string) {
+  messageInput.value = content
+  showQuickReplyPanel.value = false
+}
+
+// Voice recording handler
+async function handleVoiceRecorded(file: File, duration: number) {
+  showVoiceRecorder.value = false
+  isUploading.value = true
+  uploadProgress.value = { loaded: 0, total: file.size, percent: 0 }
+
+  try {
+    const fileInfo = await fileApi.uploadFile(file, 'voice', (progress) => {
+      uploadProgress.value = progress
+    })
+
+    // Prepare message metadata
+    const metadata = {
+      fileName: fileInfo.fileName || file.name,
+      fileSize: fileInfo.fileSize || file.size,
+      fileType: file.type,
+      fileUrl: fileInfo.url,
+      fileId: fileInfo.fileId,
+      mimeType: fileInfo.mimeType,
+      expiresAt: fileInfo.expiresAt,
+      duration: Math.round(duration),
+    }
+
+    // Send voice message
+    await chatStore.sendMessage(conversationId.value, 'voice', fileInfo.url, metadata)
+
+    await nextTick()
+    scrollToBottom()
+    ElMessage.success('Voice message sent')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error) || 'Failed to send voice message')
+  } finally {
+    isUploading.value = false
+    uploadProgress.value = null
+  }
+}
+
+function handleVoiceRecordCancel() {
+  showVoiceRecorder.value = false
+}
+
+// Photo album image view handler
+function handleAlbumImageView(imageUrl: string) {
+  openLightbox(imageUrl)
 }
 
 // Image lightbox handler
@@ -861,8 +922,14 @@ onUnmounted(() => {
         <el-tooltip content="Send File" placement="top">
           <el-icon class="tool-btn" @click="triggerFileUpload"><Folder /></el-icon>
         </el-tooltip>
-        <el-tooltip content="Video (Coming Soon)" placement="top">
-          <el-icon class="tool-btn disabled"><VideoCamera /></el-icon>
+        <el-tooltip content="Voice Message" placement="top">
+          <el-icon
+            class="tool-btn"
+            :class="{ active: showVoiceRecorder }"
+            @click="showVoiceRecorder = !showVoiceRecorder"
+          >
+            <Microphone />
+          </el-icon>
         </el-tooltip>
         <el-tooltip content="Send Location" placement="top">
           <el-icon class="tool-btn" @click="showLocationPicker = true"><Location /></el-icon>
@@ -873,6 +940,15 @@ onUnmounted(() => {
         <el-tooltip content="Send Group Card" placement="top">
           <el-icon class="tool-btn" @click="showGroupCardPicker = true"><Postcard /></el-icon>
         </el-tooltip>
+        <el-tooltip content="Quick Replies" placement="top">
+          <el-icon
+            class="tool-btn"
+            :class="{ active: showQuickReplyPanel }"
+            @click="showQuickReplyPanel = !showQuickReplyPanel"
+          >
+            <ChatLineSquare />
+          </el-icon>
+        </el-tooltip>
       </div>
 
       <!-- Emoji Picker -->
@@ -882,6 +958,20 @@ onUnmounted(() => {
         @select="handleEmojiSelect"
         @close="showEmojiPicker = false"
         class="emoji-picker-popup"
+      />
+
+      <!-- Quick Reply Panel -->
+      <QuickReplyPanel
+        v-if="showQuickReplyPanel"
+        @select="handleQuickReplySelect"
+        @close="showQuickReplyPanel = false"
+      />
+
+      <!-- Voice Recorder -->
+      <VoiceRecorder
+        v-if="showVoiceRecorder"
+        @recorded="handleVoiceRecorded"
+        @cancel="handleVoiceRecordCancel"
       />
 
       <!-- Upload Progress -->
@@ -1041,6 +1131,15 @@ onUnmounted(() => {
             <div class="result-time">{{ formatTime(result.serverCreatedAt) }}</div>
           </div>
         </div>
+      </div>
+
+      <!-- Photo Album Section -->
+      <div class="info-panel-section">
+        <div class="section-title">Media Gallery</div>
+        <PhotoAlbumPanel
+          :conversation-id="conversationId"
+          @view-image="handleAlbumImageView"
+        />
       </div>
 
       <!-- Chat Background Section -->
@@ -1296,5 +1395,10 @@ onUnmounted(() => {
 .background-actions {
   display: flex;
   gap: 8px;
+}
+
+/* Tool button active state */
+.tool-btn.active {
+  color: var(--el-color-primary);
 }
 </style>

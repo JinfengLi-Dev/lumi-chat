@@ -79,6 +79,25 @@ export const messageApi = {
     return response.data.data.map(parseMessageMetadata)
   },
 
+  /**
+   * Get media messages (images, videos, files) for a conversation
+   * GET /conversations/{id}/media?type=image
+   */
+  async getMediaMessages(
+    conversationId: number,
+    type: 'image' | 'video' | 'file' | 'voice' | 'all' = 'image',
+    page = 0,
+    limit = 20
+  ): Promise<Message[]> {
+    const response = await apiClient.get<ApiResponse<RawMessage[]>>(
+      `/conversations/${conversationId}/media`,
+      {
+        params: { type, page, limit },
+      }
+    )
+    return response.data.data.map(parseMessageMetadata)
+  },
+
   async uploadFile(file: File, onProgress?: (percent: number) => void): Promise<{ fileId: string; url: string }> {
     const formData = new FormData()
     formData.append('file', file)

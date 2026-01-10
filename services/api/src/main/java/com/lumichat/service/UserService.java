@@ -141,4 +141,30 @@ public class UserService {
         }
         return UserResponse.from(user);
     }
+
+    /**
+     * Update user's voice introduction
+     */
+    @Transactional
+    public UserResponse updateVoiceIntro(Long userId, String voiceIntroUrl, Integer duration) {
+        User user = getUserById(userId);
+        user.setVoiceIntroUrl(voiceIntroUrl);
+        user.setVoiceIntroDuration(duration);
+        user = userRepository.save(user);
+        log.info("Updated voice introduction for user: {}", userId);
+        return UserResponse.from(user);
+    }
+
+    /**
+     * Delete user's voice introduction
+     */
+    @Transactional
+    public UserResponse deleteVoiceIntro(Long userId) {
+        User user = getUserById(userId);
+        user.setVoiceIntroUrl(null);
+        user.setVoiceIntroDuration(null);
+        user = userRepository.save(user);
+        log.info("Deleted voice introduction for user: {}", userId);
+        return UserResponse.from(user);
+    }
 }

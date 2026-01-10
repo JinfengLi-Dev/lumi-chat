@@ -235,6 +235,32 @@ public class MessageService {
     }
 
     /**
+     * Get media messages (images, videos, files) for a conversation
+     * Filters by clearedAt timestamp to support clear chat history feature
+     */
+    public List<MessageResponse> getMediaMessages(Long userId, Long conversationId, String type, int page, int limit) {
+        // Get user's conversation settings including clearedAt timestamp
+        UserConversation uc = userConversationRepository.findByUserIdAndConversationId(userId, conversationId)
+                .orElseThrow(() -> new NotFoundException("Conversation not found"));
+
+        // Determine message types based on requested type
+        List<String> msgTypes = switch (type.toLowerCase()) {
+            case "image" -> List.of("image");
+            case "video" -> List.of("video");
+            case "file" -> List.of("file");
+            case "voice" -> List.of("voice");
+            default -> List.of("image", "video", "file");
+        };
+
+        Page<Message> messages = messageRepository.findByConversationIdAndMsgTypesAfterClearedAt(
+                conversationId, msgTypes, uc.getClearedAt(), PageRequest.of(page, limit));
+
+        return messages.getContent().stream()
+                .map(MessageResponse::fromWithSender)
+                .toList();
+    }
+
+    /**
      * Delete a message (soft delete for user)
      */
     @Transactional

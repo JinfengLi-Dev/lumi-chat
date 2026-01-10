@@ -52,6 +52,22 @@ public class MessageController {
     }
 
     /**
+     * Get media messages (images, videos, files) for a conversation
+     * GET /conversations/{conversationId}/media?type=image
+     */
+    @GetMapping("/conversations/{conversationId}/media")
+    public ApiResponse<List<MessageResponse>> getMediaMessages(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long conversationId,
+            @RequestParam(defaultValue = "image") String type,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int limit) {
+        List<MessageResponse> messages = messageService.getMediaMessages(
+                principal.getId(), conversationId, type, page, Math.min(limit, 50));
+        return ApiResponse.success(messages);
+    }
+
+    /**
      * Send a message
      * POST /messages
      */

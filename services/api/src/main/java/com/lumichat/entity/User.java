@@ -57,6 +57,12 @@ public class User {
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
+    @Column(name = "voice_intro_url", length = 500)
+    private String voiceIntroUrl;
+
+    @Column(name = "voice_intro_duration")
+    private Integer voiceIntroDuration;
+
     public enum Gender {
         male, female, unknown
     }

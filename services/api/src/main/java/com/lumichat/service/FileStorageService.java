@@ -151,6 +151,16 @@ public class FileStorageService {
     }
 
     /**
+     * Upload voice file (for voice messages and voice introductions)
+     */
+    @Transactional
+    public FileResponse uploadVoice(Long userId, MultipartFile file) {
+        // Voice-specific validation
+        validateVoiceUpload(file);
+        return uploadFile(userId, file, "voice");
+    }
+
+    /**
      * Get file by ID
      */
     public FileResponse getFile(String fileId) {
@@ -345,6 +355,30 @@ public class FileStorageService {
         Set<String> allowedImageTypes = Set.of("image/jpeg", "image/png", "image/gif", "image/webp");
         if (!allowedImageTypes.contains(contentType.toLowerCase())) {
             throw new BadRequestException("Avatar must be JPEG, PNG, GIF, or WebP format");
+        }
+    }
+
+    /**
+     * Validate voice upload specifically.
+     * Only allows audio files.
+     */
+    private void validateVoiceUpload(MultipartFile file) {
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new BadRequestException("Voice file size exceeds maximum allowed size of 10 MB");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("audio/")) {
+            throw new BadRequestException("Voice file must be an audio file");
+        }
+
+        // Specifically check for allowed audio types
+        Set<String> allowedAudioTypes = Set.of(
+            "audio/mpeg", "audio/mp3", "audio/ogg", "audio/wav", "audio/webm",
+            "audio/m4a", "audio/aac", "audio/x-m4a"
+        );
+        if (!allowedAudioTypes.contains(contentType.toLowerCase())) {
+            throw new BadRequestException("Voice file must be MP3, OGG, WAV, WebM, M4A, or AAC format");
         }
     }
 }

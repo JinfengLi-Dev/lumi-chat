@@ -114,6 +114,54 @@ public class UserController {
         return ApiResponse.success(user);
     }
 
+    /**
+     * Upload voice introduction
+     * POST /users/me/voice-intro
+     */
+    @PostMapping("/me/voice-intro")
+    public ApiResponse<UserResponse> uploadVoiceIntro(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "duration", required = false) Integer duration) {
+
+        if (file.isEmpty()) {
+            return ApiResponse.error("File is empty");
+        }
+
+        // Validate file type
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("audio/")) {
+            return ApiResponse.error("File must be an audio file");
+        }
+
+        // Validate file size (max 10MB)
+        if (file.getSize() > 10 * 1024 * 1024) {
+            return ApiResponse.error("File size must be less than 10MB");
+        }
+
+        // Validate duration (max 60 seconds for voice intro)
+        if (duration != null && duration > 60) {
+            return ApiResponse.error("Voice introduction must be 60 seconds or less");
+        }
+
+        // Upload to MinIO
+        FileResponse fileResponse = fileStorageService.uploadVoice(principal.getId(), file);
+        String voiceIntroUrl = fileResponse.getUrl();
+
+        UserResponse user = userService.updateVoiceIntro(principal.getId(), voiceIntroUrl, duration);
+        return ApiResponse.success(user);
+    }
+
+    /**
+     * Delete voice introduction
+     * DELETE /users/me/voice-intro
+     */
+    @DeleteMapping("/me/voice-intro")
+    public ApiResponse<UserResponse> deleteVoiceIntro(@AuthenticationPrincipal UserPrincipal principal) {
+        UserResponse user = userService.deleteVoiceIntro(principal.getId());
+        return ApiResponse.success(user);
+    }
+
     // Inner class for avatar response
     public record AvatarResponse(String url) {}
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ChatDotRound, Plus, User as UserIcon } from '@element-plus/icons-vue'
+import VoiceIntroduction from '@/components/profile/VoiceIntroduction.vue'
 import type { User } from '@/types'
 
 const props = defineProps<{
@@ -17,7 +18,12 @@ const emit = defineEmits<{
   (e: 'send-message', user: User): void
   (e: 'add-friend', user: User): void
   (e: 'edit-profile'): void
+  (e: 'user-updated', user: User): void
 }>()
+
+function handleVoiceIntroUpdated(updatedUser: User) {
+  emit('user-updated', updatedUser)
+}
 
 const displayName = computed(() => props.user?.nickname || 'Unknown User')
 
@@ -152,6 +158,16 @@ function handleEditProfile() {
           <span class="detail-label">Last seen</span>
           <span class="detail-value">{{ formattedLastLogin }}</span>
         </div>
+      </div>
+
+      <!-- Voice Introduction -->
+      <div class="voice-intro-section">
+        <h3 class="section-title">Voice Introduction</h3>
+        <VoiceIntroduction
+          :user="user"
+          :is-own-profile="isSelf"
+          @updated="handleVoiceIntroUpdated"
+        />
       </div>
 
       <!-- Actions -->
@@ -315,5 +331,18 @@ function handleEditProfile() {
 .profile-empty p {
   margin-top: 12px;
   font-size: 14px;
+}
+
+.voice-intro-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  margin: 0;
 }
 </style>

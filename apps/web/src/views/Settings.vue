@@ -6,6 +6,7 @@ import { useUserStore } from '@/stores/user'
 import { authApi } from '@/api/auth'
 import { getErrorMessage } from '@/utils/errorHandler'
 import DeviceManagement from '@/components/settings/DeviceManagement.vue'
+import QuickReplySettings from '@/components/settings/QuickReplySettings.vue'
 import type { FormInstance, FormRules } from 'element-plus'
 
 const router = useRouter()
@@ -145,6 +146,14 @@ async function handleUploadAvatar(file: File) {
         </div>
         <div
           class="menu-item"
+          :class="{ active: activeTab === 'quick-replies' }"
+          @click="activeTab = 'quick-replies'"
+        >
+          <el-icon><ChatLineSquare /></el-icon>
+          <span>Quick Replies</span>
+        </div>
+        <div
+          class="menu-item"
           :class="{ active: activeTab === 'about' }"
           @click="activeTab = 'about'"
         >
@@ -262,6 +271,14 @@ async function handleUploadAvatar(file: File) {
         <p class="section-desc">Manage devices that are logged into your account</p>
 
         <DeviceManagement />
+      </div>
+
+      <!-- Quick Replies Tab -->
+      <div v-if="activeTab === 'quick-replies'" class="settings-section">
+        <h2>Quick Reply Templates</h2>
+        <p class="section-desc">Create preset messages for quick responses in chats</p>
+
+        <QuickReplySettings />
       </div>
 
       <!-- About Tab -->

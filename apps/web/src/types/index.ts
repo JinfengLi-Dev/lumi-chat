@@ -13,6 +13,8 @@ export interface User {
   createdAt: string
   lastLoginAt?: string
   lastLoginIp?: string
+  voiceIntroUrl?: string
+  voiceIntroDuration?: number
 }
 
 export interface UserDevice {
