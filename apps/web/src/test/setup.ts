@@ -3,23 +3,6 @@ import { config } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import ElementPlus from 'element-plus'
 
-// Create a fresh Pinia instance for each test
-beforeEach(() => {
-  setActivePinia(createPinia())
-
-  // Clear localStorage mock calls between tests
-  vi.mocked(localStorage.getItem).mockClear()
-  vi.mocked(localStorage.setItem).mockClear()
-  vi.mocked(localStorage.removeItem).mockClear()
-  vi.mocked(localStorage.clear).mockClear()
-})
-
-// Clean up after each test
-afterEach(() => {
-  // Reset all mocks
-  vi.clearAllMocks()
-})
-
 // Mock Element Plus globally
 config.global.plugins = [ElementPlus]
 
@@ -47,7 +30,7 @@ Object.defineProperty(navigator, 'clipboard', {
   writable: true,
 })
 
-// Mock localStorage
+// Mock localStorage - must be defined before beforeEach
 const localStorageMock = {
   getItem: vi.fn(),
   setItem: vi.fn(),
@@ -56,6 +39,25 @@ const localStorageMock = {
 }
 Object.defineProperty(window, 'localStorage', {
   value: localStorageMock,
+})
+
+// Create a fresh Pinia instance for each test
+beforeEach(() => {
+  setActivePinia(createPinia())
+
+  // Clear localStorage mock calls between tests (now defined)
+  if (localStorageMock.getItem.mockClear) {
+    localStorageMock.getItem.mockClear()
+    localStorageMock.setItem.mockClear()
+    localStorageMock.removeItem.mockClear()
+    localStorageMock.clear.mockClear()
+  }
+})
+
+// Clean up after each test
+afterEach(() => {
+  // Reset all mocks
+  vi.clearAllMocks()
 })
 
 // Mock URL.createObjectURL

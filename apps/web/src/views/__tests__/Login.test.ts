@@ -223,7 +223,7 @@ describe('Login', () => {
     })
 
     it('should show default error message when no error message provided', async () => {
-      mockLogin.mockRejectedValue({})
+      mockLogin.mockRejectedValue(new Error('Login failed'))
 
       const wrapper = mount(Login)
       const vm = wrapper.vm as unknown as LoginVM

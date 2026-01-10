@@ -6,7 +6,6 @@ import { config } from '@vue/test-utils'
 // Mock Leaflet - define inside vi.mock factory to avoid hoisting issues
 vi.mock('leaflet', () => {
   const mockOn = vi.fn()
-  const mockAddTo = vi.fn()
 
   const mockMap = {
     setView: vi.fn().mockReturnThis(),
@@ -15,34 +14,32 @@ vi.mock('leaflet', () => {
     invalidateSize: vi.fn(),
   }
 
-  // Use mockReturnThis for chained calls
-  mockAddTo.mockImplementation(function (this: unknown) {
-    return this
-  })
-
   const mockTileLayer = {
-    addTo: mockAddTo,
+    addTo: vi.fn().mockReturnValue(mockMap),
   }
 
   const mockMarker = {
     setLatLng: vi.fn().mockReturnThis(),
     on: mockOn,
     getLatLng: vi.fn().mockReturnValue({ lat: 39.9042, lng: 116.4074 }),
-    addTo: mockAddTo,
+    addTo: vi.fn().mockReturnThis(),
+  }
+
+  const leafletExports = {
+    map: vi.fn().mockReturnValue(mockMap),
+    marker: vi.fn().mockReturnValue(mockMarker),
+    tileLayer: vi.fn().mockReturnValue(mockTileLayer),
+    Icon: {
+      Default: {
+        prototype: { _getIconUrl: vi.fn() },
+        mergeOptions: vi.fn(),
+      },
+    },
   }
 
   return {
-    default: {
-      map: vi.fn().mockReturnValue(mockMap),
-      marker: vi.fn().mockReturnValue(mockMarker),
-      tileLayer: vi.fn().mockReturnValue(mockTileLayer),
-      Icon: {
-        Default: {
-          prototype: { _getIconUrl: vi.fn() },
-          mergeOptions: vi.fn(),
-        },
-      },
-    },
+    default: leafletExports,
+    ...leafletExports,
   }
 })
 

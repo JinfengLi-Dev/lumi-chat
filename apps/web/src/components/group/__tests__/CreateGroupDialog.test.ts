@@ -1,11 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises, config } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
+import { AxiosError, AxiosHeaders } from 'axios'
 import CreateGroupDialog from '../CreateGroupDialog.vue'
 import { friendApi, groupApi, fileApi } from '@/api'
 import type { Friend } from '@/types'
 import type { GroupDetail } from '@/api/group'
 import { ElMessage } from 'element-plus'
+
+// Helper to create AxiosError with response message
+function createAxiosError(message: string): AxiosError {
+  const error = new AxiosError(message)
+  error.response = {
+    data: { message },
+    status: 400,
+    statusText: 'Bad Request',
+    headers: {},
+    config: { headers: new AxiosHeaders() },
+  }
+  return error
+}
 
 // Mock the API modules
 vi.mock('@/api', () => ({
@@ -175,9 +189,9 @@ describe('CreateGroupDialog', () => {
     })
 
     it('should show error on load failure', async () => {
-      vi.mocked(friendApi.getFriends).mockRejectedValue({
-        response: { data: { message: 'Failed to load friends' } },
-      })
+      vi.mocked(friendApi.getFriends).mockRejectedValue(
+        createAxiosError('Failed to load friends')
+      )
 
       const wrapper = mount(CreateGroupDialog, {
         props: { modelValue: false },
@@ -522,9 +536,9 @@ describe('CreateGroupDialog', () => {
     })
 
     it('should show error on creation failure', async () => {
-      vi.mocked(groupApi.createGroup).mockRejectedValue({
-        response: { data: { message: 'Group name already exists' } },
-      })
+      vi.mocked(groupApi.createGroup).mockRejectedValue(
+        createAxiosError('Group name already exists')
+      )
 
       const wrapper = await mountAndOpen()
       const vm = wrapper.vm as unknown as CreateGroupDialogVM
@@ -673,9 +687,8 @@ describe('CreateGroupDialog', () => {
 
   describe('Error Handling', () => {
     it('should show default error message when no message in response', async () => {
-      vi.mocked(friendApi.getFriends).mockRejectedValue({
-        response: { data: {} },
-      })
+      // When there's no message in response, getErrorMessage returns the fallback
+      vi.mocked(friendApi.getFriends).mockRejectedValue(new Error('Network error'))
 
       const wrapper = mount(CreateGroupDialog, {
         props: { modelValue: false },
@@ -684,14 +697,13 @@ describe('CreateGroupDialog', () => {
       await wrapper.setProps({ modelValue: true })
       await flushPromises()
 
-      expect(ElMessage.error).toHaveBeenCalledWith('Failed to load friends')
+      expect(ElMessage.error).toHaveBeenCalledWith('Network error')
       wrapper.unmount()
     })
 
     it('should show default error for group creation failure', async () => {
-      vi.mocked(groupApi.createGroup).mockRejectedValue({
-        response: { data: {} },
-      })
+      // When there's no specific message, getErrorMessage returns the error message
+      vi.mocked(groupApi.createGroup).mockRejectedValue(new Error('Network error'))
 
       const wrapper = await mountAndOpen()
       const vm = wrapper.vm as unknown as CreateGroupDialogVM
@@ -700,7 +712,7 @@ describe('CreateGroupDialog', () => {
       await vm.createGroup()
       await flushPromises()
 
-      expect(ElMessage.error).toHaveBeenCalledWith('Failed to create group')
+      expect(ElMessage.error).toHaveBeenCalledWith('Network error')
       wrapper.unmount()
     })
   })

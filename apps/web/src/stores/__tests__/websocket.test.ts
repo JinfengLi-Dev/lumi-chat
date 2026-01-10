@@ -19,6 +19,13 @@ vi.mock('@/services/websocket', () => ({
   },
 }))
 
+// Mock conversation API to prevent unhandled rejections
+vi.mock('@/api/conversation', () => ({
+  conversationApi: {
+    getConversations: vi.fn().mockResolvedValue([]),
+  },
+}))
+
 // Helper to create mock message
 function createMockMessage(overrides: Partial<Message> = {}): Message {
   return {

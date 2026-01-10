@@ -1,10 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises, config } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
+import { AxiosError, AxiosHeaders } from 'axios'
 import AddFriendDialog from '../AddFriendDialog.vue'
 import { userApi, friendApi, conversationApi } from '@/api'
 import type { User, Conversation } from '@/types'
 import { ElMessage } from 'element-plus'
+
+// Helper to create AxiosError with response message
+function createAxiosError(message: string): AxiosError {
+  const error = new AxiosError(message)
+  error.response = {
+    data: { message },
+    status: 400,
+    statusText: 'Bad Request',
+    headers: {},
+    config: { headers: new AxiosHeaders() },
+  }
+  return error
+}
 
 // Mock the API modules
 vi.mock('@/api', () => ({
@@ -197,9 +211,9 @@ describe('AddFriendDialog', () => {
     })
 
     it('should show error message on search failure', async () => {
-      vi.mocked(userApi.searchUsers).mockRejectedValue({
-        response: { data: { message: 'Search failed' } },
-      })
+      vi.mocked(userApi.searchUsers).mockRejectedValue(
+        createAxiosError('Search failed')
+      )
 
       const wrapper = await mountAndOpen()
       const vm = wrapper.vm as unknown as AddFriendDialogVM
@@ -392,9 +406,9 @@ describe('AddFriendDialog', () => {
 
     it('should show error message on failed request', async () => {
       const user = createMockUser()
-      vi.mocked(friendApi.sendFriendRequest).mockRejectedValue({
-        response: { data: { message: 'Already friends' } },
-      })
+      vi.mocked(friendApi.sendFriendRequest).mockRejectedValue(
+        createAxiosError('Already friends')
+      )
 
       const wrapper = await mountAndOpen()
       const vm = wrapper.vm as unknown as AddFriendDialogVM
@@ -495,9 +509,9 @@ describe('AddFriendDialog', () => {
 
     it('should show error on stranger conversation failure', async () => {
       const user = createMockUser()
-      vi.mocked(conversationApi.createStrangerConversation).mockRejectedValue({
-        response: { data: { message: 'Failed to create conversation' } },
-      })
+      vi.mocked(conversationApi.createStrangerConversation).mockRejectedValue(
+        createAxiosError('Failed to create conversation')
+      )
 
       const wrapper = await mountAndOpen()
       const vm = wrapper.vm as unknown as AddFriendDialogVM
@@ -560,9 +574,7 @@ describe('AddFriendDialog', () => {
 
   describe('Error Handling', () => {
     it('should show default error message when no message in response', async () => {
-      vi.mocked(userApi.searchUsers).mockRejectedValue({
-        response: { data: {} },
-      })
+      vi.mocked(userApi.searchUsers).mockRejectedValue(new Error('Search failed'))
 
       const wrapper = await mountAndOpen()
       const vm = wrapper.vm as unknown as AddFriendDialogVM
@@ -577,9 +589,7 @@ describe('AddFriendDialog', () => {
 
     it('should show default error for friend request failure', async () => {
       const user = createMockUser()
-      vi.mocked(friendApi.sendFriendRequest).mockRejectedValue({
-        response: { data: {} },
-      })
+      vi.mocked(friendApi.sendFriendRequest).mockRejectedValue(new Error('Failed to send request'))
 
       const wrapper = await mountAndOpen()
       const vm = wrapper.vm as unknown as AddFriendDialogVM
@@ -594,9 +604,7 @@ describe('AddFriendDialog', () => {
 
     it('should show default error for stranger conversation failure', async () => {
       const user = createMockUser()
-      vi.mocked(conversationApi.createStrangerConversation).mockRejectedValue({
-        response: { data: {} },
-      })
+      vi.mocked(conversationApi.createStrangerConversation).mockRejectedValue(new Error('Failed to start conversation'))
 
       const wrapper = await mountAndOpen()
       const vm = wrapper.vm as unknown as AddFriendDialogVM

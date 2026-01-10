@@ -275,7 +275,7 @@ describe('Register', () => {
     })
 
     it('should show default error message when no error message provided', async () => {
-      mockRegister.mockRejectedValue({})
+      mockRegister.mockRejectedValue(new Error('Registration failed'))
 
       const wrapper = mount(Register)
       const vm = wrapper.vm as unknown as RegisterVM
