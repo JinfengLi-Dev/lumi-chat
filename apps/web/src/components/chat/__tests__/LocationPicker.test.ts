@@ -5,7 +5,7 @@ import { config } from '@vue/test-utils'
 
 // Mock Leaflet - define inside vi.mock factory to avoid hoisting issues
 vi.mock('leaflet', () => {
-  const mockOn = vi.fn()
+  const mockOn = vi.fn().mockReturnThis()
 
   const mockMap = {
     setView: vi.fn().mockReturnThis(),
@@ -14,9 +14,9 @@ vi.mock('leaflet', () => {
     invalidateSize: vi.fn(),
   }
 
-  const mockTileLayer = {
-    addTo: vi.fn().mockReturnValue(mockMap),
-  }
+  // Create tileLayer mock with self-returning addTo
+  const mockTileLayer: Record<string, unknown> = {}
+  mockTileLayer.addTo = vi.fn().mockReturnValue(mockTileLayer)
 
   const mockMarker = {
     setLatLng: vi.fn().mockReturnThis(),

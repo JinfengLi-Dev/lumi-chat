@@ -6,6 +6,7 @@ import { useUserStore } from '@/stores/user'
 import { useThemeStore, type ThemeMode } from '@/stores/theme'
 import { authApi } from '@/api/auth'
 import { getErrorMessage } from '@/utils/errorHandler'
+import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import DeviceManagement from '@/components/settings/DeviceManagement.vue'
 import QuickReplySettings from '@/components/settings/QuickReplySettings.vue'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -13,6 +14,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 const router = useRouter()
 const userStore = useUserStore()
 const themeStore = useThemeStore()
+const { shortcuts, formatShortcut, isEnabled: shortcutsEnabled, setEnabled: setShortcutsEnabled } = useKeyboardShortcuts()
 
 // Browser info for About section
 const platformInfo = computed(() => navigator.platform)
@@ -344,6 +346,32 @@ function handleThemeChange(val: string | number | boolean | undefined) {
               </div>
             </div>
           </div>
+
+          <el-divider />
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Keyboard Shortcuts</span>
+              <span class="setting-desc">Enable keyboard shortcuts for faster navigation</span>
+            </div>
+            <el-switch
+              :model-value="shortcutsEnabled"
+              @update:model-value="setShortcutsEnabled"
+            />
+          </div>
+
+          <div v-if="shortcutsEnabled" class="shortcuts-list">
+            <div class="shortcuts-list-header">
+              <span>Available Shortcuts</span>
+              <span class="shortcuts-tip">Press <kbd>Ctrl</kbd> + <kbd>/</kbd> anytime</span>
+            </div>
+            <div class="shortcut-grid">
+              <div v-for="shortcut in shortcuts" :key="shortcut.key" class="shortcut-row">
+                <span class="shortcut-keys">{{ formatShortcut(shortcut) }}</span>
+                <span class="shortcut-desc">{{ shortcut.description }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -630,5 +658,70 @@ function handleThemeChange(val: string | number | boolean | undefined) {
 .dark-preview .preview-message.self .preview-bubble {
   background-color: #2d5a1e;
   color: #e5e5e5;
+}
+
+/* Keyboard Shortcuts List */
+.shortcuts-list {
+  margin-top: 20px;
+  padding: 16px;
+  background-color: var(--lc-bg-hover);
+  border-radius: 8px;
+}
+
+.shortcuts-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  font-weight: 500;
+  color: var(--lc-text-primary);
+}
+
+.shortcuts-tip {
+  font-size: 12px;
+  font-weight: normal;
+  color: var(--lc-text-secondary);
+}
+
+.shortcuts-tip kbd {
+  font-family: monospace;
+  font-size: 11px;
+  padding: 2px 6px;
+  background-color: var(--lc-bg-white);
+  border: 1px solid var(--lc-border-color);
+  border-radius: 3px;
+}
+
+.shortcut-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--lc-border-color);
+}
+
+.shortcut-row:last-child {
+  border-bottom: none;
+}
+
+.shortcut-keys {
+  font-family: monospace;
+  font-size: 12px;
+  padding: 4px 8px;
+  background-color: var(--lc-bg-white);
+  border: 1px solid var(--lc-border-color);
+  border-radius: 4px;
+  color: var(--lc-text-primary);
+}
+
+.shortcut-desc {
+  color: var(--lc-text-regular);
+  font-size: 13px;
 }
 </style>

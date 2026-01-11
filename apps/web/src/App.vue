@@ -2,9 +2,12 @@
 import { onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
+import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
+import KeyboardShortcutsHelp from '@/components/settings/KeyboardShortcutsHelp.vue'
 
 const userStore = useUserStore()
 const themeStore = useThemeStore()
+const { showHelp } = useKeyboardShortcuts()
 
 onMounted(async () => {
   // Initialize theme
@@ -23,6 +26,7 @@ onMounted(async () => {
 
 <template>
   <router-view />
+  <KeyboardShortcutsHelp v-model="showHelp" />
 </template>
 
 <style>
