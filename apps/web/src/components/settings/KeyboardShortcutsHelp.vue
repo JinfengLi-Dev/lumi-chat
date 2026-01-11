@@ -43,7 +43,7 @@ const conversationShortcuts = computed(() =>
         <span>Enable keyboard shortcuts</span>
         <el-switch
           :model-value="isEnabled"
-          @update:model-value="setEnabled"
+          @update:model-value="(val) => setEnabled(!!val)"
         />
       </div>
 

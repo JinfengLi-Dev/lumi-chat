@@ -356,7 +356,7 @@ function handleThemeChange(val: string | number | boolean | undefined) {
             </div>
             <el-switch
               :model-value="shortcutsEnabled"
-              @update:model-value="setShortcutsEnabled"
+              @update:model-value="(val) => setShortcutsEnabled(!!val)"
             />
           </div>
 

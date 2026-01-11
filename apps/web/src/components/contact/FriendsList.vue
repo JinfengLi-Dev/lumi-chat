@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
+import { useVirtualizer } from '@tanstack/vue-virtual'
 import { useFriendStore } from '@/stores/friend'
 import { conversationApi } from '@/api/conversation'
 import FriendItem from './FriendItem.vue'
@@ -14,6 +15,7 @@ const emit = defineEmits<{
 
 const friendStore = useFriendStore()
 const searchQuery = ref('')
+const scrollContainerRef = ref<HTMLElement | null>(null)
 
 const filteredFriends = computed(() => {
   const friends = friendStore.sortedFriends
@@ -25,6 +27,16 @@ const filteredFriends = computed(() => {
     const displayName = friend.remark || friend.nickname || ''
     return displayName.toLowerCase().includes(query)
   })
+})
+
+// Virtual scrolling setup
+const virtualizer = useVirtualizer({
+  get count() {
+    return filteredFriends.value.length
+  },
+  getScrollElement: () => scrollContainerRef.value,
+  estimateSize: () => 60, // Estimated height of each friend item
+  overscan: 5, // Render 5 extra items above and below viewport
 })
 
 async function loadFriends() {
@@ -81,16 +93,38 @@ onMounted(() => {
       />
     </div>
 
-    <!-- Friend List -->
-    <div class="friends-content">
-      <FriendItem
-        v-for="friend in filteredFriends"
-        :key="friend.id"
-        :friend="friend"
-        :is-online="friendStore.isUserOnline(friend.id)"
-        @click="handleFriendClick(friend)"
-        @context-menu="(e) => handleContextMenu(friend, e)"
-      />
+    <!-- Friend List with Virtual Scrolling -->
+    <div
+      ref="scrollContainerRef"
+      class="friends-content"
+    >
+      <div
+        :style="{
+          height: `${virtualizer.getTotalSize()}px`,
+          width: '100%',
+          position: 'relative',
+        }"
+      >
+        <div
+          v-for="virtualRow in virtualizer.getVirtualItems()"
+          :key="String(virtualRow.key)"
+          :style="{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: `${virtualRow.size}px`,
+            transform: `translateY(${virtualRow.start}px)`,
+          }"
+        >
+          <FriendItem
+            :friend="filteredFriends[virtualRow.index]"
+            :is-online="friendStore.isUserOnline(filteredFriends[virtualRow.index].id)"
+            @click="handleFriendClick(filteredFriends[virtualRow.index])"
+            @context-menu="(e) => handleContextMenu(filteredFriends[virtualRow.index], e)"
+          />
+        </div>
+      </div>
 
       <div v-if="filteredFriends.length === 0 && !friendStore.loading" class="empty-state">
         <el-empty

@@ -13,7 +13,9 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
+    "@tanstack/vue-virtual": "^3.13.18",
     "@types/leaflet": "^1.9.21",
+    "@vueuse/core": "^14.1.0",
     "axios": "^1.7.9",
     "dayjs": "^1.11.13",
     "element-plus": "^2.9.2",

@@ -15,6 +15,7 @@ import ConversationContextMenu from '@/components/chat/ConversationContextMenu.v
 import ConversationSkeleton from '@/components/common/ConversationSkeleton.vue'
 import type { Conversation } from '@/types'
 import { getErrorMessage } from '@/utils/errorHandler'
+import { conversationApi } from '@/api/conversation'
 
 const router = useRouter()
 const route = useRoute()
@@ -254,14 +255,34 @@ function handleConversationContextMenu(e: MouseEvent, conv: Conversation) {
   contextMenuVisible.value = true
 }
 
-function handleContextMenuPin(conv: Conversation) {
-  // Toggle pin status - would need API call
-  ElMessage.info(`${conv.isPinned ? 'Unpinned' : 'Pinned'} conversation`)
+async function handleContextMenuPin(conv: Conversation) {
+  try {
+    const newPinned = !conv.isPinned
+    await conversationApi.togglePin(conv.id, newPinned)
+    // Update in store to trigger reactive re-sort
+    const storeConv = chatStore.conversations.find(c => c.id === conv.id)
+    if (storeConv) {
+      storeConv.isPinned = newPinned
+    }
+    ElMessage.success(newPinned ? 'Conversation pinned' : 'Conversation unpinned')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error) || 'Failed to update pin status')
+  }
 }
 
-function handleContextMenuMute(conv: Conversation) {
-  // Toggle mute status - would need API call
-  ElMessage.info(`${conv.isMuted ? 'Unmuted' : 'Muted'} conversation`)
+async function handleContextMenuMute(conv: Conversation) {
+  try {
+    const newMuted = !conv.isMuted
+    await conversationApi.toggleMute(conv.id, newMuted)
+    // Update in store
+    const storeConv = chatStore.conversations.find(c => c.id === conv.id)
+    if (storeConv) {
+      storeConv.isMuted = newMuted
+    }
+    ElMessage.success(newMuted ? 'Notifications muted' : 'Notifications unmuted')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error) || 'Failed to update mute status')
+  }
 }
 
 async function handleContextMenuMarkRead(conv: Conversation) {
