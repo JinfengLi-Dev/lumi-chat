@@ -50,6 +50,8 @@ public class SecurityConfig {
                     "/auth/forgot-password",
                     "/auth/reset-password",
                     "/health",
+                    "/health/live",
+                    "/health/ready",
                     "/api-docs/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html"
