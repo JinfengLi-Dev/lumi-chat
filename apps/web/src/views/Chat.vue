@@ -6,6 +6,7 @@ import { Top, BellFilled, Operation } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useChatStore } from '@/stores/chat'
 import { useWebSocketStore } from '@/stores/websocket'
+import { useVirtualizer } from '@tanstack/vue-virtual'
 import AddFriendDialog from '@/components/contact/AddFriendDialog.vue'
 import FriendRequestsDialog from '@/components/contact/FriendRequestsDialog.vue'
 import CreateGroupDialog from '@/components/group/CreateGroupDialog.vue'
@@ -38,6 +39,7 @@ const keyboardFocusIndex = ref(-1)
 const friendsListRef = ref<InstanceType<typeof FriendsList>>()
 const groupsListRef = ref<InstanceType<typeof GroupsList>>()
 const conversationListRef = ref<HTMLElement>()
+const conversationScrollContainerRef = ref<HTMLElement | null>(null)
 
 // Check if we're on a conversation page (for mobile view)
 const isConversationActive = computed(() => {
@@ -57,6 +59,16 @@ const filteredConversations = computed(() => {
     const name = conv.group?.name || conv.targetUser?.nickname || ''
     return name.toLowerCase().includes(query)
   })
+})
+
+// Virtual scrolling for conversation list (must be after filteredConversations)
+const conversationVirtualizer = useVirtualizer({
+  get count() {
+    return filteredConversations.value.length
+  },
+  getScrollElement: () => conversationScrollContainerRef.value,
+  estimateSize: () => 72, // Height of conversation item
+  overscan: 5,
 })
 
 const totalUnread = computed(() => chatStore.totalUnreadCount)
@@ -417,62 +429,82 @@ async function handleContextMenuDelete(conv: Conversation) {
         />
       </div>
 
-      <div class="conversation-list-content">
+      <div class="conversation-list-content" ref="conversationScrollContainerRef">
         <!-- Messages Tab - Conversation List -->
         <template v-if="activeTab === 'messages'">
           <!-- Loading Skeleton -->
           <ConversationSkeleton v-if="chatStore.loading" :count="6" />
 
-          <!-- Conversation Items -->
-          <template v-else>
+          <!-- Conversation Items with Virtual Scrolling -->
+          <template v-else-if="filteredConversations.length > 0">
             <div
-              v-for="(conv, index) in filteredConversations"
-              :key="conv.id"
-              class="conversation-item"
-              :class="{
-                active: chatStore.currentConversationId === conv.id,
-                pinned: conv.isPinned,
-                muted: conv.isMuted,
-                'keyboard-focus': keyboardFocusIndex === index
+              :style="{
+                height: `${conversationVirtualizer.getTotalSize()}px`,
+                position: 'relative',
+                width: '100%'
               }"
-              :tabindex="0"
-              role="button"
-              :aria-selected="chatStore.currentConversationId === conv.id"
-              @click="selectConversation(conv.id)"
-              @contextmenu="(e) => handleConversationContextMenu(e, conv)"
             >
-            <div class="conversation-item-avatar">
-              <el-avatar
-                :src="conv.group?.avatar || conv.targetUser?.avatar"
-                :size="45"
-                shape="square"
+              <div
+                v-for="virtualRow in conversationVirtualizer.getVirtualItems()"
+                :key="String(virtualRow.key)"
+                :style="{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualRow.start}px)`,
+                  height: `${virtualRow.size}px`
+                }"
               >
-                {{ (conv.group?.name || conv.targetUser?.nickname || '?').charAt(0) }}
-              </el-avatar>
-            </div>
+                <div
+                  class="conversation-item"
+                  :class="{
+                    active: chatStore.currentConversationId === filteredConversations[virtualRow.index].id,
+                    pinned: filteredConversations[virtualRow.index].isPinned,
+                    muted: filteredConversations[virtualRow.index].isMuted,
+                    'keyboard-focus': keyboardFocusIndex === virtualRow.index
+                  }"
+                  :tabindex="0"
+                  role="button"
+                  :aria-selected="chatStore.currentConversationId === filteredConversations[virtualRow.index].id"
+                  @click="selectConversation(filteredConversations[virtualRow.index].id)"
+                  @contextmenu="(e) => handleConversationContextMenu(e, filteredConversations[virtualRow.index])"
+                >
+                  <div class="conversation-item-avatar">
+                    <el-avatar
+                      :src="filteredConversations[virtualRow.index].group?.avatar || filteredConversations[virtualRow.index].targetUser?.avatar"
+                      :size="45"
+                      shape="square"
+                    >
+                      {{ (filteredConversations[virtualRow.index].group?.name || filteredConversations[virtualRow.index].targetUser?.nickname || '?').charAt(0) }}
+                    </el-avatar>
+                  </div>
 
-            <div class="conversation-item-content">
-              <div class="conversation-item-header">
-                <span class="name ellipsis">
-                  <el-icon v-if="conv.isPinned" class="pin-icon"><Top /></el-icon>
-                  {{ conv.group?.name || conv.targetUser?.nickname || 'Unknown' }}
-                </span>
-                <span class="time">{{ formatTime(conv.lastMsgTime) }}</span>
-              </div>
+                  <div class="conversation-item-content">
+                    <div class="conversation-item-header">
+                      <span class="name ellipsis">
+                        <el-icon v-if="filteredConversations[virtualRow.index].isPinned" class="pin-icon"><Top /></el-icon>
+                        {{ filteredConversations[virtualRow.index].group?.name || filteredConversations[virtualRow.index].targetUser?.nickname || 'Unknown' }}
+                      </span>
+                      <span class="time">{{ formatTime(filteredConversations[virtualRow.index].lastMsgTime) }}</span>
+                    </div>
 
-              <div class="conversation-item-message">
-                <span v-if="conv.atMsgIds?.length" class="at-badge">[Someone @'d you]</span>
-                <span class="text ellipsis">{{ getLastMessagePreview(conv) }}</span>
-                <el-icon v-if="conv.isMuted" class="mute-icon"><BellFilled /></el-icon>
-                <span v-if="conv.unreadCount > 0" class="badge" :class="{ muted: conv.isMuted }">
-                  {{ conv.unreadCount > 99 ? '99+' : conv.unreadCount }}
-                </span>
+                    <div class="conversation-item-message">
+                      <span v-if="filteredConversations[virtualRow.index].atMsgIds?.length" class="at-badge">[Someone @'d you]</span>
+                      <span class="text ellipsis">{{ getLastMessagePreview(filteredConversations[virtualRow.index]) }}</span>
+                      <el-icon v-if="filteredConversations[virtualRow.index].isMuted" class="mute-icon"><BellFilled /></el-icon>
+                      <span v-if="filteredConversations[virtualRow.index].unreadCount > 0" class="badge" :class="{ muted: filteredConversations[virtualRow.index].isMuted }">
+                        {{ filteredConversations[virtualRow.index].unreadCount > 99 ? '99+' : filteredConversations[virtualRow.index].unreadCount }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          </template>
 
           <!-- Enhanced Empty State -->
-          <div v-if="filteredConversations.length === 0" class="empty-state">
+          <div v-else class="empty-state">
             <el-icon class="empty-state-icon"><ChatDotRound /></el-icon>
             <div class="empty-state-title">
               {{ searchQuery ? 'No results found' : 'No conversations yet' }}
@@ -489,7 +521,6 @@ async function handleContextMenuDelete(conv: Conversation) {
               </el-button>
             </div>
           </div>
-          </template>
         </template>
 
         <!-- Contacts Tab - Friends List -->
