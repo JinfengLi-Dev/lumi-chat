@@ -167,4 +167,42 @@ public class UserService {
         log.info("Deleted voice introduction for user: {}", userId);
         return UserResponse.from(user);
     }
+
+    /**
+     * Check if UID is available (not taken by another user)
+     */
+    public boolean isUidAvailable(Long currentUserId, String uid) {
+        User currentUser = getUserById(currentUserId);
+
+        // If the UID is the same as current user's UID, it's available
+        if (currentUser.getUid().equals(uid)) {
+            return true;
+        }
+
+        // Check if UID is taken by another user
+        return !userRepository.existsByUid(uid);
+    }
+
+    /**
+     * Update user's UID
+     */
+    @Transactional
+    public UserResponse updateUid(Long userId, String newUid) {
+        User user = getUserById(userId);
+
+        // Check if UID is same as current
+        if (user.getUid().equals(newUid)) {
+            return UserResponse.from(user);
+        }
+
+        // Check if UID is already taken
+        if (userRepository.existsByUid(newUid)) {
+            throw new BadRequestException("UID is already in use");
+        }
+
+        user.setUid(newUid);
+        user = userRepository.save(user);
+        log.info("Updated UID for user {} to {}", userId, newUid);
+        return UserResponse.from(user);
+    }
 }

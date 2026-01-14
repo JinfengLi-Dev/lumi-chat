@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore, type ThemeMode } from '@/stores/theme'
 import { authApi } from '@/api/auth'
+import { userApi } from '@/api/user'
 import { getErrorMessage } from '@/utils/errorHandler'
 import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import DeviceManagement from '@/components/settings/DeviceManagement.vue'
@@ -24,6 +25,95 @@ const activeTab = ref('profile')
 const loading = ref(false)
 const profileFormRef = ref<FormInstance>()
 const passwordFormRef = ref<FormInstance>()
+
+// UID editing state
+const uidForm = reactive({
+  uid: userStore.user?.uid || '',
+})
+const originalUid = ref(userStore.user?.uid || '')
+const uidChecking = ref(false)
+const uidSaving = ref(false)
+const uidAvailable = ref<boolean | null>(null)
+const uidError = ref('')
+let uidCheckTimeout: ReturnType<typeof setTimeout> | null = null
+
+// Computed: Check if UID has changed
+const uidChanged = computed(() => uidForm.uid !== originalUid.value)
+
+// Watch for UID changes to check availability
+watch(() => uidForm.uid, (newUid) => {
+  // Reset state on each change
+  uidError.value = ''
+  uidAvailable.value = null
+
+  // Clear previous timeout
+  if (uidCheckTimeout) {
+    clearTimeout(uidCheckTimeout)
+  }
+
+  // If UID is same as original, no need to check
+  if (newUid === originalUid.value) {
+    return
+  }
+
+  // Validate format
+  if (!newUid || newUid.length < 3) {
+    uidError.value = newUid.length > 0 ? 'UID must be at least 3 characters' : ''
+    return
+  }
+
+  if (newUid.length > 20) {
+    uidError.value = 'UID must be at most 20 characters'
+    return
+  }
+
+  if (!/^[a-zA-Z0-9_]+$/.test(newUid)) {
+    uidError.value = 'UID can only contain letters, numbers, and underscores'
+    return
+  }
+
+  // Debounce the check
+  uidCheckTimeout = setTimeout(() => {
+    checkUidAvailability()
+  }, 500)
+})
+
+async function checkUidAvailability() {
+  if (!uidChanged.value) return
+
+  uidChecking.value = true
+  try {
+    const available = await userApi.checkUidAvailability(uidForm.uid)
+    uidAvailable.value = available
+    if (!available) {
+      uidError.value = 'This UID is already taken'
+    }
+  } catch (error) {
+    uidError.value = getErrorMessage(error)
+  } finally {
+    uidChecking.value = false
+  }
+}
+
+async function handleUpdateUid() {
+  if (!uidChanged.value || uidAvailable.value === false || uidError.value) {
+    return
+  }
+
+  uidSaving.value = true
+  try {
+    const updatedUser = await userApi.updateUid(uidForm.uid)
+    userStore.user = updatedUser
+    originalUid.value = updatedUser.uid
+    uidAvailable.value = null
+    ElMessage.success('UID updated successfully')
+  } catch (error) {
+    uidError.value = getErrorMessage(error)
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    uidSaving.value = false
+  }
+}
 
 const profileForm = reactive({
   nickname: userStore.user?.nickname || '',
@@ -211,7 +301,32 @@ function handleThemeChange(val: string | number | boolean | undefined) {
           style="max-width: 500px"
         >
           <el-form-item label="UID">
-            <el-input :value="userStore.user?.uid" disabled />
+            <div class="uid-input-wrapper">
+              <el-input
+                v-model="uidForm.uid"
+                placeholder="Enter your unique ID"
+                :class="{ 'uid-available': uidAvailable === true && uidChanged, 'uid-taken': uidAvailable === false }"
+              >
+                <template #suffix>
+                  <el-icon v-if="uidChecking" class="is-loading"><Loading /></el-icon>
+                  <el-icon v-else-if="uidAvailable === true && uidChanged" class="uid-success-icon"><CircleCheck /></el-icon>
+                  <el-icon v-else-if="uidAvailable === false" class="uid-error-icon"><CircleClose /></el-icon>
+                </template>
+              </el-input>
+              <el-button
+                v-if="uidChanged"
+                type="primary"
+                size="small"
+                :loading="uidSaving"
+                :disabled="uidAvailable !== true || !!uidError"
+                @click="handleUpdateUid"
+              >
+                Save
+              </el-button>
+            </div>
+            <div v-if="uidError" class="uid-status uid-error">{{ uidError }}</div>
+            <div v-else-if="uidAvailable === true && uidChanged" class="uid-status uid-success">UID is available</div>
+            <div class="uid-hint">3-20 characters, letters, numbers, and underscores only</div>
           </el-form-item>
 
           <el-form-item label="Email">
@@ -723,5 +838,52 @@ function handleThemeChange(val: string | number | boolean | undefined) {
 .shortcut-desc {
   color: var(--lc-text-regular);
   font-size: 13px;
+}
+
+/* UID Input Styles */
+.uid-input-wrapper {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+}
+
+.uid-input-wrapper .el-input {
+  flex: 1;
+}
+
+.uid-status {
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.uid-status.uid-error {
+  color: var(--el-color-danger);
+}
+
+.uid-status.uid-success {
+  color: var(--el-color-success);
+}
+
+.uid-hint {
+  font-size: 11px;
+  color: var(--lc-text-secondary);
+  margin-top: 4px;
+}
+
+.uid-success-icon {
+  color: var(--el-color-success);
+}
+
+.uid-error-icon {
+  color: var(--el-color-danger);
+}
+
+.uid-available :deep(.el-input__wrapper) {
+  box-shadow: 0 0 0 1px var(--el-color-success) inset;
+}
+
+.uid-taken :deep(.el-input__wrapper) {
+  box-shadow: 0 0 0 1px var(--el-color-danger) inset;
 }
 </style>

@@ -2,6 +2,7 @@ package com.lumichat.controller;
 
 import com.lumichat.dto.request.ChangePasswordRequest;
 import com.lumichat.dto.request.UpdateProfileRequest;
+import com.lumichat.dto.request.UpdateUidRequest;
 import com.lumichat.dto.response.ApiResponse;
 import com.lumichat.dto.response.FileResponse;
 import com.lumichat.dto.response.UserResponse;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/users")
@@ -90,6 +92,36 @@ public class UserController {
             @Valid @RequestBody ChangePasswordRequest request) {
         userService.changePassword(principal.getId(), request);
         return ApiResponse.success();
+    }
+
+    /**
+     * Check if UID is available
+     * GET /users/check-uid?uid=xxx
+     */
+    @GetMapping("/check-uid")
+    public ApiResponse<Map<String, Boolean>> checkUidAvailability(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestParam String uid) {
+
+        // Validate UID format (alphanumeric and underscores, 3-20 chars)
+        if (!uid.matches("^[a-zA-Z0-9_]{3,20}$")) {
+            return ApiResponse.error(400, "UID must be 3-20 characters containing only letters, numbers, and underscores");
+        }
+
+        boolean available = userService.isUidAvailable(principal.getId(), uid);
+        return ApiResponse.success(Map.of("available", available));
+    }
+
+    /**
+     * Update user UID
+     * PUT /users/me/uid
+     */
+    @PutMapping("/me/uid")
+    public ApiResponse<UserResponse> updateUid(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody UpdateUidRequest request) {
+        UserResponse user = userService.updateUid(principal.getId(), request.getUid());
+        return ApiResponse.success(user);
     }
 
     /**

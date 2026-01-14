@@ -59,4 +59,16 @@ export const userApi = {
     const response = await apiClient.delete<ApiResponse<User>>('/users/me/voice-intro')
     return response.data.data
   },
+
+  async checkUidAvailability(uid: string): Promise<boolean> {
+    const response = await apiClient.get<ApiResponse<{ available: boolean }>>('/users/check-uid', {
+      params: { uid },
+    })
+    return response.data.data.available
+  },
+
+  async updateUid(uid: string): Promise<User> {
+    const response = await apiClient.put<ApiResponse<User>>('/users/me/uid', { uid })
+    return response.data.data
+  },
 }

@@ -10,6 +10,7 @@ import { useVirtualizer } from '@tanstack/vue-virtual'
 import AddFriendDialog from '@/components/contact/AddFriendDialog.vue'
 import FriendRequestsDialog from '@/components/contact/FriendRequestsDialog.vue'
 import CreateGroupDialog from '@/components/group/CreateGroupDialog.vue'
+import StartConversationDialog from '@/components/chat/StartConversationDialog.vue'
 import FriendsList from '@/components/contact/FriendsList.vue'
 import GroupsList from '@/components/group/GroupsList.vue'
 import ConversationContextMenu from '@/components/chat/ConversationContextMenu.vue'
@@ -30,6 +31,7 @@ const showSettingsMenu = ref(false)
 const showAddFriendDialog = ref(false)
 const showFriendRequestsDialog = ref(false)
 const showCreateGroupDialog = ref(false)
+const showStartConversationDialog = ref(false)
 
 // Mobile navigation state
 const isMobileMenuOpen = ref(false)
@@ -171,13 +173,19 @@ function selectConversation(id: number) {
 }
 
 function handleAddAction(action: string) {
-  if (action === 'friend') {
+  if (action === 'conversation') {
+    showStartConversationDialog.value = true
+  } else if (action === 'friend') {
     showAddFriendDialog.value = true
   } else if (action === 'group') {
     showCreateGroupDialog.value = true
   } else if (action === 'requests') {
     showFriendRequestsDialog.value = true
   }
+}
+
+function handleConversationStarted(conversationId: number) {
+  handleOpenConversation(conversationId)
 }
 
 function handleFriendRequestSent() {
@@ -375,9 +383,8 @@ async function handleContextMenuDelete(conv: Conversation) {
       </div>
 
       <div class="sidebar-bottom">
-        <!-- Hide Plus button on Conversations tab, show context-aware options on other tabs -->
+        <!-- Plus button with context-aware options based on active tab -->
         <el-dropdown
-          v-if="activeTab !== 'messages'"
           trigger="click"
           @command="handleAddAction"
         >
@@ -386,6 +393,7 @@ async function handleContextMenuDelete(conv: Conversation) {
           </div>
           <template #dropdown>
             <el-dropdown-menu>
+              <el-dropdown-item v-if="activeTab === 'messages'" command="conversation">Start Conversation</el-dropdown-item>
               <el-dropdown-item v-if="activeTab === 'contacts'" command="friend">Add Friend</el-dropdown-item>
               <el-dropdown-item v-if="activeTab === 'contacts'" command="requests">Friend Requests</el-dropdown-item>
               <el-dropdown-item v-if="activeTab === 'groups'" command="group">Create Group</el-dropdown-item>
@@ -565,6 +573,10 @@ async function handleContextMenuDelete(conv: Conversation) {
     <CreateGroupDialog
       v-model="showCreateGroupDialog"
       @group-created="handleGroupCreated"
+    />
+    <StartConversationDialog
+      v-model="showStartConversationDialog"
+      @conversation-started="handleConversationStarted"
     />
 
     <!-- Conversation Context Menu -->
