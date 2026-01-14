@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -195,25 +196,40 @@ public class ConversationService {
      */
     @Transactional
     public ConversationResponse getOrCreatePrivateConversation(Long userId, Long targetUserId) {
-        // Check if conversation already exists
-        List<UserConversation> existingUc = userConversationRepository
-                .findAllByUserIdOrderByPinnedAndTime(userId);
+        // First, check if a conversation already exists in the conversations table
+        // This prevents duplicate conversations when UserConversation entries are missing
+        Optional<Conversation> existingConversation = conversationRepository.findPrivateChat(userId, targetUserId);
 
-        for (UserConversation uc : existingUc) {
-            if (uc.getConversation().getType() == Conversation.ConversationType.private_chat) {
-                List<Long> participantIds = arrayToList(uc.getConversation().getParticipantIds());
-                if (participantIds.contains(targetUserId) && participantIds.contains(userId)) {
-                    // Found existing conversation
-                    if (uc.getIsHidden()) {
-                        uc.setIsHidden(false);
-                        userConversationRepository.save(uc);
-                    }
-                    return buildConversationResponse(uc, userId);
+        if (existingConversation.isPresent()) {
+            Conversation conversation = existingConversation.get();
+
+            // Ensure the current user has a UserConversation entry
+            Optional<UserConversation> userUc = userConversationRepository
+                    .findByUserIdAndConversationId(userId, conversation.getId());
+
+            if (userUc.isPresent()) {
+                UserConversation uc = userUc.get();
+                if (uc.getIsHidden()) {
+                    uc.setIsHidden(false);
+                    userConversationRepository.save(uc);
                 }
+                return buildConversationResponse(uc, userId);
+            } else {
+                // Create missing UserConversation entry for current user
+                User currentUser = userRepository.findById(userId)
+                        .orElseThrow(() -> new NotFoundException("Current user not found"));
+                UserConversation newUc = UserConversation.builder()
+                        .user(currentUser)
+                        .conversation(conversation)
+                        .build();
+                userConversationRepository.save(newUc);
+                log.info("Created missing UserConversation for user {} in conversation {}",
+                        userId, conversation.getId());
+                return buildConversationResponse(newUc, userId);
             }
         }
 
-        // Create new conversation
+        // No existing conversation found, create a new one
         User targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new NotFoundException("Target user not found"));
 

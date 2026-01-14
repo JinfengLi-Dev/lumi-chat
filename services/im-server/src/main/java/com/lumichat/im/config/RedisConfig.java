@@ -61,6 +61,9 @@ public class RedisConfig {
                 // Get conversation participants from API
                 List<Long> participants = apiClient.getConversationParticipants(conversationId);
 
+                log.debug("Message {} - conversation {} has {} participants: {}",
+                        msgId, conversationId, participants.size(), participants);
+
                 if (participants.isEmpty()) {
                     log.warn("No participants found for conversation {}", conversationId);
                     return;
@@ -81,11 +84,18 @@ public class RedisConfig {
                 for (Long participantId : participants) {
                     var sessions = sessionManager.getSessionsByUserId(participantId);
 
+                    log.debug("Message {} - participant {} has {} sessions",
+                            msgId, participantId, sessions.size());
+
                     // Check if user has any online sessions (excluding sender's originating device)
                     boolean hasOnlineSession = false;
                     for (var session : sessions) {
+                        log.debug("Message {} - checking session: userId={}, deviceId={}, senderId={}, senderDeviceId={}",
+                                msgId, participantId, session.getDeviceId(), senderId, senderDeviceId);
+
                         // Skip the originating device
                         if (participantId.equals(senderId) && session.getDeviceId().equals(senderDeviceId)) {
+                            log.debug("Message {} - skipping originating device for userId={}", msgId, participantId);
                             continue;
                         }
 

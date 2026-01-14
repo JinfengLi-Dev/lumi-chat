@@ -370,20 +370,25 @@ async function handleContextMenuDelete(conv: Conversation) {
           :class="{ active: activeTab === 'groups' }"
           @click="activeTab = 'groups'"
         >
-          <el-icon :size="24"><UserFilled /></el-icon>
+          <el-icon :size="24"><Coordinate /></el-icon>
         </div>
       </div>
 
       <div class="sidebar-bottom">
-        <el-dropdown trigger="click" @command="handleAddAction">
+        <!-- Hide Plus button on Conversations tab, show context-aware options on other tabs -->
+        <el-dropdown
+          v-if="activeTab !== 'messages'"
+          trigger="click"
+          @command="handleAddAction"
+        >
           <div class="sidebar-item">
             <el-icon :size="24"><Plus /></el-icon>
           </div>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="friend">Add Friend</el-dropdown-item>
-              <el-dropdown-item command="requests">Friend Requests</el-dropdown-item>
-              <el-dropdown-item command="group">Create Group</el-dropdown-item>
+              <el-dropdown-item v-if="activeTab === 'contacts'" command="friend">Add Friend</el-dropdown-item>
+              <el-dropdown-item v-if="activeTab === 'contacts'" command="requests">Friend Requests</el-dropdown-item>
+              <el-dropdown-item v-if="activeTab === 'groups'" command="group">Create Group</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>

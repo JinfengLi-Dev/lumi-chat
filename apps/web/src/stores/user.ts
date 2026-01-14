@@ -155,6 +155,7 @@ export const useUserStore = defineStore('user', {
 
       localStorage.removeItem('token')
       localStorage.removeItem('refreshToken')
+      localStorage.removeItem('deviceId') // Clear deviceId to prevent cross-user session confusion
     },
 
     async refreshTokenIfNeeded() {

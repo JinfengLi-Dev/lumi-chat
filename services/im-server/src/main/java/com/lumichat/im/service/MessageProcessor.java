@@ -514,7 +514,12 @@ public class MessageProcessor {
     public void sendToUserDevice(Long userId, String deviceId, Packet packet) {
         UserSession session = sessionManager.getSession(userId, deviceId);
         if (session != null) {
+            log.debug("sendToUserDevice: sending to userId={}, deviceId={}, packetType={}",
+                    userId, deviceId, packet.getType());
             sendPacket(session, packet);
+        } else {
+            log.warn("sendToUserDevice: no session found for userId={}, deviceId={}, packetType={}",
+                    userId, deviceId, packet.getType());
         }
     }
 
