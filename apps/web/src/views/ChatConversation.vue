@@ -7,6 +7,7 @@ import { useFriendStore } from '@/stores/friend'
 import { useUserStore } from '@/stores/user'
 import { useWebSocketStore } from '@/stores/websocket'
 import { useDebounceFn } from '@vueuse/core'
+import { useVirtualizer } from '@tanstack/vue-virtual'
 import { fileApi, friendApi, messageApi, conversationApi } from '@/api'
 import type { UploadProgress } from '@/api/file'
 import type { Message, User, Group } from '@/types'
@@ -98,6 +99,51 @@ const showSearchResults = ref(false)
 const backgroundInputRef = ref<HTMLInputElement>()
 const isUploadingBackground = ref(false)
 
+// Virtual scrolling state
+const isAtBottom = ref(true)
+const scrollHeightBeforeLoad = ref(0)
+
+// Estimate message height based on type and content
+function estimateMessageHeight(index: number): number {
+  const msg = messages.value[index]
+  if (!msg) return 80
+
+  // Recalled messages are compact
+  if (msg.recalledAt) return 50
+
+  switch (msg.msgType) {
+    case 'image':
+    case 'video':
+      return 250 // image + padding + status
+    case 'file':
+      return 100
+    case 'location':
+    case 'user_card':
+    case 'group_card':
+      return 120
+    case 'voice':
+      return 80
+    case 'text':
+    default:
+      // Estimate based on content length (~40 chars per line)
+      const content = msg.content || ''
+      const lines = Math.ceil(content.length / 40)
+      return Math.max(70, 50 + lines * 20)
+  }
+}
+
+// Virtual scroller for messages
+const messageVirtualizer = useVirtualizer({
+  get count() {
+    return messages.value.length
+  },
+  getScrollElement: () => messageListRef.value || null,
+  estimateSize: estimateMessageHeight,
+  overscan: 10,
+  // Enable reverse mode for chat (newest at bottom)
+  getItemKey: (index: number) => messages.value[index]?.msgId || index,
+})
+
 // Typing indicator - connected to WebSocket store
 const typingUsers = computed(() =>
   chatStore.currentTypingUsers.map((t) => ({
@@ -129,11 +175,8 @@ const conversation = computed(() => chatStore.currentConversation)
 const messages = computed(() => chatStore.currentMessages)
 const hasMore = computed(() => chatStore.hasMoreMessages.get(conversationId.value) ?? true)
 
-// Track the last read status to force re-renders when read receipts arrive
-const lastReadByOther = computed(() => {
-  if (!conversationId.value) return undefined
-  return chatStore.lastReadByOther.get(conversationId.value)
-})
+// lastReadByOther is accessed via chatStore.isMessageReadByOther() in getMessageStatus()
+// which automatically triggers re-renders when the underlying state changes
 
 watch(conversationId, async (id) => {
   if (id) {
@@ -142,13 +185,20 @@ watch(conversationId, async (id) => {
   }
 }, { immediate: true })
 
-// Watch for new messages and send read receipt
+// Watch for new messages and send read receipt + auto-scroll
 watch(
   () => messages.value.length,
   (newLen, oldLen) => {
     if (newLen > (oldLen ?? 0) && conversationId.value) {
       // New message arrived, send debounced read receipt
       debouncedSendReadReceipt()
+
+      // Auto-scroll to bottom only if already at bottom (for new incoming messages)
+      if (isAtBottom.value) {
+        nextTick(() => {
+          scrollToBottom()
+        })
+      }
     }
   }
 )
@@ -174,9 +224,22 @@ async function loadMoreMessages() {
   const firstMsg = messages.value[0]
   if (!firstMsg) return
 
+  // Store scroll height before loading for scroll anchoring
+  const scrollEl = messageListRef.value
+  scrollHeightBeforeLoad.value = scrollEl?.scrollHeight || 0
+
   loading.value = true
   try {
+    const previousCount = messages.value.length
     await chatStore.fetchMessages(conversationId.value, firstMsg.id)
+
+    // Restore scroll position after new messages are prepended (scroll anchoring)
+    await nextTick()
+    if (scrollEl && messages.value.length > previousCount) {
+      const newScrollHeight = scrollEl.scrollHeight
+      const scrollDiff = newScrollHeight - scrollHeightBeforeLoad.value
+      scrollEl.scrollTop += scrollDiff
+    }
   } finally {
     loading.value = false
   }
@@ -199,8 +262,23 @@ async function sendMessage() {
 }
 
 function scrollToBottom() {
-  if (messageListRef.value) {
-    messageListRef.value.scrollTop = messageListRef.value.scrollHeight
+  if (messages.value.length > 0) {
+    messageVirtualizer.value.scrollToIndex(messages.value.length - 1, { align: 'end' })
+  }
+  isAtBottom.value = true
+}
+
+// Handle scroll events for load more and tracking isAtBottom
+function handleMessageScroll() {
+  if (!messageListRef.value) return
+  const { scrollTop, scrollHeight, clientHeight } = messageListRef.value
+
+  // Track if user is at bottom (100px threshold)
+  isAtBottom.value = scrollHeight - scrollTop - clientHeight < 100
+
+  // Load more when near top (200px threshold)
+  if (scrollTop < 200 && hasMore.value && !loading.value) {
+    loadMoreMessages()
   }
 }
 
@@ -643,16 +721,23 @@ function clearSearch() {
   showSearchResults.value = false
 }
 
-// Scroll to a specific message
+// Scroll to a specific message using virtualizer
 function scrollToMessage(msgId: string) {
-  const messageElement = document.querySelector(`[data-msg-id="${msgId}"]`)
-  if (messageElement) {
-    messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    // Highlight the message briefly
-    messageElement.classList.add('highlight')
+  const index = messages.value.findIndex(m => m.msgId === msgId)
+  if (index >= 0) {
+    // Use virtualizer to scroll to the index
+    messageVirtualizer.value.scrollToIndex(index, { align: 'center' })
+
+    // Highlight the message after scroll completes
     setTimeout(() => {
-      messageElement.classList.remove('highlight')
-    }, 2000)
+      const messageElement = document.querySelector(`[data-msg-id="${msgId}"]`)
+      if (messageElement) {
+        messageElement.classList.add('highlight')
+        setTimeout(() => {
+          messageElement.classList.remove('highlight')
+        }, 2000)
+      }
+    }, 100)
   }
   showSearchResults.value = false
 }
@@ -762,134 +847,158 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Messages -->
+    <!-- Messages with Virtual Scrolling -->
     <div
       ref="messageListRef"
       class="chat-area-messages"
       :style="conversation.backgroundUrl ? { backgroundImage: `url(${conversation.backgroundUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}"
-      @scroll="loadMoreMessages"
+      @scroll="handleMessageScroll"
     >
       <div v-if="loading && messages.length === 0" class="flex-center" style="height: 100%">
         <el-icon class="is-loading" :size="24"><Loading /></el-icon>
       </div>
 
-      <div v-if="hasMore && messages.length > 0" class="flex-center" style="padding: 10px">
-        <el-button text :loading="loading" @click="loadMoreMessages">
-          Load more
+      <div v-if="hasMore && messages.length > 0" class="load-more-indicator">
+        <el-button text :loading="loading" @click="loadMoreMessages" size="small">
+          {{ loading ? 'Loading...' : 'Load more' }}
         </el-button>
       </div>
 
+      <!-- Virtual Scroller Container -->
       <div
-        v-for="msg in messages"
-        :key="`${msg.msgId}-${lastReadByOther}`"
-        :data-msg-id="msg.msgId"
-        class="message"
-        :class="{ self: isSelf(msg.senderId), other: !isSelf(msg.senderId) }"
-        @contextmenu="handleContextMenu($event, msg)"
+        :style="{
+          height: `${messageVirtualizer.getTotalSize()}px`,
+          width: '100%',
+          position: 'relative',
+        }"
       >
-        <div class="message-avatar">
-          <el-avatar :src="msg.sender?.avatar" :size="40" shape="square">
-            {{ msg.sender?.nickname?.charAt(0) || '?' }}
-          </el-avatar>
-        </div>
+        <div
+          v-for="virtualRow in messageVirtualizer.getVirtualItems()"
+          :key="messages[virtualRow.index]?.msgId || virtualRow.index"
+          :data-index="virtualRow.index"
+          :style="{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            transform: `translateY(${virtualRow.start}px)`,
+          }"
+        >
+          <div
+            v-if="messages[virtualRow.index]"
+            :data-msg-id="messages[virtualRow.index].msgId"
+            class="message"
+            :class="{
+              self: isSelf(messages[virtualRow.index].senderId),
+              other: !isSelf(messages[virtualRow.index].senderId)
+            }"
+            @contextmenu="handleContextMenu($event, messages[virtualRow.index])"
+          >
+            <div class="message-avatar">
+              <el-avatar :src="messages[virtualRow.index].sender?.avatar" :size="40" shape="square">
+                {{ messages[virtualRow.index].sender?.nickname?.charAt(0) || '?' }}
+              </el-avatar>
+            </div>
 
-        <div class="message-bubble">
-          <div v-if="!isSelf(msg.senderId) && conversation.type === 'group'" class="sender-name">
-            {{ msg.sender?.nickname || 'Unknown' }}
-          </div>
+            <div class="message-bubble">
+              <div v-if="!isSelf(messages[virtualRow.index].senderId) && conversation.type === 'group'" class="sender-name">
+                {{ messages[virtualRow.index].sender?.nickname || 'Unknown' }}
+              </div>
 
-          <!-- Recalled message -->
-          <div v-if="msg.recalledAt" class="message-recalled">
-            {{ isSelf(msg.senderId) ? 'You recalled a message' : `${msg.sender?.nickname} recalled a message` }}
-          </div>
+              <!-- Recalled message -->
+              <div v-if="messages[virtualRow.index].recalledAt" class="message-recalled">
+                {{ isSelf(messages[virtualRow.index].senderId) ? 'You recalled a message' : `${messages[virtualRow.index].sender?.nickname} recalled a message` }}
+              </div>
 
-          <!-- Text message -->
-          <div v-else-if="msg.msgType === 'text'" class="content">
-            {{ msg.content }}
-          </div>
+              <!-- Text message -->
+              <div v-else-if="messages[virtualRow.index].msgType === 'text'" class="content">
+                {{ messages[virtualRow.index].content }}
+              </div>
 
-          <!-- Image message -->
-          <div v-else-if="msg.msgType === 'image'" class="content image-content">
-            <img
-              :src="msg.metadata?.thumbnailUrl || msg.content"
-              style="max-width: 200px; max-height: 200px; border-radius: 4px; cursor: pointer"
-              @click="openLightbox(msg.content)"
-            />
-          </div>
+              <!-- Image message -->
+              <div v-else-if="messages[virtualRow.index].msgType === 'image'" class="content image-content">
+                <img
+                  :src="messages[virtualRow.index].metadata?.thumbnailUrl || messages[virtualRow.index].content"
+                  style="max-width: 200px; max-height: 200px; border-radius: 4px; cursor: pointer"
+                  @click="openLightbox(messages[virtualRow.index].content)"
+                />
+              </div>
 
-          <!-- File message -->
-          <div v-else-if="msg.msgType === 'file'" class="content file-content">
-            <FileMessage
-              :message="msg"
-              @retry="handleRetryFileUpload"
-            />
-          </div>
+              <!-- File message -->
+              <div v-else-if="messages[virtualRow.index].msgType === 'file'" class="content file-content">
+                <FileMessage
+                  :message="messages[virtualRow.index]"
+                  @retry="handleRetryFileUpload"
+                />
+              </div>
 
-          <!-- Location message -->
-          <div v-else-if="msg.msgType === 'location'" class="content">
-            <LocationMessage
-              :latitude="msg.metadata?.latitude || 0"
-              :longitude="msg.metadata?.longitude || 0"
-              :address="msg.metadata?.address || 'Unknown location'"
-            />
-          </div>
+              <!-- Location message -->
+              <div v-else-if="messages[virtualRow.index].msgType === 'location'" class="content">
+                <LocationMessage
+                  :latitude="messages[virtualRow.index].metadata?.latitude || 0"
+                  :longitude="messages[virtualRow.index].metadata?.longitude || 0"
+                  :address="messages[virtualRow.index].metadata?.address || 'Unknown location'"
+                />
+              </div>
 
-          <!-- User card message -->
-          <div v-else-if="msg.msgType === 'user_card'" class="content card-content">
-            <UserCardMessage
-              :user="{
-                id: msg.metadata?.userId || 0,
-                uid: msg.metadata?.uid || '',
-                nickname: msg.metadata?.nickname || 'Unknown',
-                avatar: msg.metadata?.avatar,
-                email: '',
-                gender: 'male',
-                status: 'active',
-                createdAt: ''
-              }"
-              @view-profile="() => {}"
-              @send-message="() => {}"
-              @add-friend="() => {}"
-            />
-          </div>
+              <!-- User card message -->
+              <div v-else-if="messages[virtualRow.index].msgType === 'user_card'" class="content card-content">
+                <UserCardMessage
+                  :user="{
+                    id: messages[virtualRow.index].metadata?.userId || 0,
+                    uid: messages[virtualRow.index].metadata?.uid || '',
+                    nickname: messages[virtualRow.index].metadata?.nickname || 'Unknown',
+                    avatar: messages[virtualRow.index].metadata?.avatar,
+                    email: '',
+                    gender: 'male',
+                    status: 'active',
+                    createdAt: ''
+                  }"
+                  @view-profile="() => {}"
+                  @send-message="() => {}"
+                  @add-friend="() => {}"
+                />
+              </div>
 
-          <!-- Group card message -->
-          <div v-else-if="msg.msgType === 'group_card'" class="content card-content">
-            <GroupCardMessage
-              :group="{
-                id: msg.metadata?.groupId || 0,
-                gid: msg.metadata?.gid || '',
-                name: msg.metadata?.name || 'Unknown Group',
-                avatar: msg.metadata?.avatar,
-                ownerId: 0,
-                creatorId: 0,
-                maxMembers: 200,
-                memberCount: msg.metadata?.memberCount || 0,
-                createdAt: ''
-              }"
-              @view-group="() => {}"
-              @open-chat="() => {}"
-              @join-group="() => {}"
-            />
-          </div>
+              <!-- Group card message -->
+              <div v-else-if="messages[virtualRow.index].msgType === 'group_card'" class="content card-content">
+                <GroupCardMessage
+                  :group="{
+                    id: messages[virtualRow.index].metadata?.groupId || 0,
+                    gid: messages[virtualRow.index].metadata?.gid || '',
+                    name: messages[virtualRow.index].metadata?.name || 'Unknown Group',
+                    avatar: messages[virtualRow.index].metadata?.avatar,
+                    ownerId: 0,
+                    creatorId: 0,
+                    maxMembers: 200,
+                    memberCount: messages[virtualRow.index].metadata?.memberCount || 0,
+                    createdAt: ''
+                  }"
+                  @view-group="() => {}"
+                  @open-chat="() => {}"
+                  @join-group="() => {}"
+                />
+              </div>
 
-          <!-- Other message types -->
-          <div v-else class="content">
-            [{{ msg.msgType }}]
-          </div>
+              <!-- Other message types -->
+              <div v-else class="content">
+                [{{ messages[virtualRow.index].msgType }}]
+              </div>
 
-          <div class="message-footer">
-            <span class="time">{{ formatTime(msg.serverCreatedAt) }}</span>
-            <MessageStatus
-              v-if="isSelf(msg.senderId)"
-              :status="getMessageStatus(msg)"
-              class="message-status"
-            />
+              <div class="message-footer">
+                <span class="time">{{ formatTime(messages[virtualRow.index].serverCreatedAt) }}</span>
+                <MessageStatus
+                  v-if="isSelf(messages[virtualRow.index].senderId)"
+                  :status="getMessageStatus(messages[virtualRow.index])"
+                  class="message-status"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Typing Indicator -->
+      <!-- Typing Indicator (positioned at the end of virtual list) -->
       <div v-if="typingUsers.length > 0" class="typing-indicator-wrapper">
         <TypingIndicator :typing-users="typingUsers" />
       </div>
@@ -1400,5 +1509,16 @@ onUnmounted(() => {
 /* Tool button active state */
 .tool-btn.active {
   color: var(--el-color-primary);
+}
+
+/* Virtual scrolling load more indicator */
+.load-more-indicator {
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 100%);
 }
 </style>
