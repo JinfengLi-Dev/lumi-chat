@@ -355,8 +355,10 @@ class ConversationServiceTest {
         @DisplayName("Should return existing conversation")
         void shouldReturnExistingConversation() {
             // Given
-            when(userConversationRepository.findAllByUserIdOrderByPinnedAndTime(1L))
-                    .thenReturn(Collections.singletonList(userConversation));
+            when(conversationRepository.findPrivateChat(1L, 2L))
+                    .thenReturn(Optional.of(privateConversation));
+            when(userConversationRepository.findByUserIdAndConversationId(1L, 100L))
+                    .thenReturn(Optional.of(userConversation));
             when(userRepository.findById(2L)).thenReturn(Optional.of(targetUser));
             when(messageRepository.findByConversationIdAfterClearedAt(eq(100L), any(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(Collections.emptyList()));
@@ -374,8 +376,10 @@ class ConversationServiceTest {
         void shouldUnhideExistingHiddenConversation() {
             // Given
             userConversation.setIsHidden(true);
-            when(userConversationRepository.findAllByUserIdOrderByPinnedAndTime(1L))
-                    .thenReturn(Collections.singletonList(userConversation));
+            when(conversationRepository.findPrivateChat(1L, 2L))
+                    .thenReturn(Optional.of(privateConversation));
+            when(userConversationRepository.findByUserIdAndConversationId(1L, 100L))
+                    .thenReturn(Optional.of(userConversation));
             when(userConversationRepository.save(any(UserConversation.class)))
                     .thenAnswer(inv -> inv.getArgument(0));
             when(userRepository.findById(2L)).thenReturn(Optional.of(targetUser));
@@ -395,8 +399,8 @@ class ConversationServiceTest {
         @DisplayName("Should create new conversation when none exists")
         void shouldCreateNewConversationWhenNoneExists() {
             // Given
-            when(userConversationRepository.findAllByUserIdOrderByPinnedAndTime(1L))
-                    .thenReturn(Collections.emptyList());
+            when(conversationRepository.findPrivateChat(1L, 2L))
+                    .thenReturn(Optional.empty());
             when(userRepository.findById(2L)).thenReturn(Optional.of(targetUser));
             when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
             when(conversationRepository.save(any(Conversation.class))).thenAnswer(inv -> {
@@ -426,8 +430,8 @@ class ConversationServiceTest {
         @DisplayName("Should throw exception when target user not found")
         void shouldThrowExceptionWhenTargetUserNotFound() {
             // Given
-            when(userConversationRepository.findAllByUserIdOrderByPinnedAndTime(1L))
-                    .thenReturn(Collections.emptyList());
+            when(conversationRepository.findPrivateChat(1L, 2L))
+                    .thenReturn(Optional.empty());
             when(userRepository.findById(2L)).thenReturn(Optional.empty());
 
             // When/Then
@@ -440,8 +444,8 @@ class ConversationServiceTest {
         @DisplayName("Should throw exception when current user not found")
         void shouldThrowExceptionWhenCurrentUserNotFound() {
             // Given
-            when(userConversationRepository.findAllByUserIdOrderByPinnedAndTime(1L))
-                    .thenReturn(Collections.emptyList());
+            when(conversationRepository.findPrivateChat(1L, 2L))
+                    .thenReturn(Optional.empty());
             when(userRepository.findById(2L)).thenReturn(Optional.of(targetUser));
             when(userRepository.findById(1L)).thenReturn(Optional.empty());
 
@@ -455,21 +459,8 @@ class ConversationServiceTest {
         @DisplayName("Should not match group conversations")
         void shouldNotMatchGroupConversations() {
             // Given
-            Conversation groupConversation = Conversation.builder()
-                    .id(300L)
-                    .type(Conversation.ConversationType.group)
-                    .participantIds(new Long[]{1L, 2L, 3L})
-                    .build();
-
-            UserConversation groupUc = UserConversation.builder()
-                    .id(3L)
-                    .user(testUser)
-                    .conversation(groupConversation)
-                    .isHidden(false)
-                    .build();
-
-            when(userConversationRepository.findAllByUserIdOrderByPinnedAndTime(1L))
-                    .thenReturn(Collections.singletonList(groupUc));
+            when(conversationRepository.findPrivateChat(1L, 2L))
+                    .thenReturn(Optional.empty());
             when(userRepository.findById(2L)).thenReturn(Optional.of(targetUser));
             when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
             when(conversationRepository.save(any(Conversation.class))).thenAnswer(inv -> {
