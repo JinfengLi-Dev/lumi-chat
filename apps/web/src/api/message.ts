@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { Message, MessageType, MessageMetadata, ApiResponse } from '@/types'
+import type { Message, MessageType, MessageMetadata, MessageReaction, ApiResponse } from '@/types'
 
 export interface SendMessageRequest {
   conversationId: number
@@ -110,6 +110,33 @@ export const messageApi = {
         }
       },
     })
+    return response.data.data
+  },
+
+  /**
+   * Add a reaction to a message
+   * POST /messages/{messageId}/reactions
+   */
+  async addReaction(messageId: number, emoji: string): Promise<void> {
+    await apiClient.post(`/messages/${messageId}/reactions`, { emoji })
+  },
+
+  /**
+   * Remove a reaction from a message
+   * DELETE /messages/{messageId}/reactions/{emoji}
+   */
+  async removeReaction(messageId: number, emoji: string): Promise<void> {
+    await apiClient.delete(`/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`)
+  },
+
+  /**
+   * Get all reactions for a message
+   * GET /messages/{messageId}/reactions
+   */
+  async getReactions(messageId: number): Promise<MessageReaction[]> {
+    const response = await apiClient.get<ApiResponse<MessageReaction[]>>(
+      `/messages/${messageId}/reactions`
+    )
     return response.data.data
   },
 }

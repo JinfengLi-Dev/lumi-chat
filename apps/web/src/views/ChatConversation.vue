@@ -609,11 +609,13 @@ async function handleGroupCardSelect(group: Group) {
 
 // Reaction handlers
 function handleReactionAdded(messageId: number, emoji: string) {
-  console.log('Reaction added:', messageId, emoji)
+  if (!conversationId.value || !userStore.userId) return
+  chatStore.handleReactionAdded(conversationId.value, messageId, userStore.userId, emoji)
 }
 
 function handleReactionRemoved(messageId: number, emoji: string) {
-  console.log('Reaction removed:', messageId, emoji)
+  if (!conversationId.value || !userStore.userId) return
+  chatStore.handleReactionRemoved(conversationId.value, messageId, userStore.userId, emoji)
 }
 
 // Pinned messages handlers

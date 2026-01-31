@@ -1,7 +1,9 @@
 package com.lumichat.repository;
 
 import com.lumichat.entity.UserConversation;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,6 +16,10 @@ import java.util.Optional;
 public interface UserConversationRepository extends JpaRepository<UserConversation, Long> {
 
     Optional<UserConversation> findByUserIdAndConversationId(Long userId, Long conversationId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT uc FROM UserConversation uc WHERE uc.user.id = :userId AND uc.conversation.id = :conversationId")
+    Optional<UserConversation> findByUserIdAndConversationIdForUpdate(@Param("userId") Long userId, @Param("conversationId") Long conversationId);
 
     @Query("SELECT uc FROM UserConversation uc " +
            "JOIN FETCH uc.conversation c " +

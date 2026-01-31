@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import type { Conversation, Message, MessageType, MessageMetadata } from '@/types'
 import { conversationApi } from '@/api/conversation'
 import { messageApi } from '@/api/message'
+import { useUserStore } from './user'
 
 interface TypingUser {
   userId: number
@@ -489,17 +490,26 @@ export const useChatStore = defineStore('chat', {
         message.reactions = []
       }
 
-      // Check if this exact reaction already exists
-      const existingReaction = message.reactions.find(
-        (r) => r.emoji === emoji && r.userId === userId
-      )
-      if (!existingReaction) {
+      // Find existing aggregated reaction for this emoji
+      const existingReaction = message.reactions.find((r) => r.emoji === emoji)
+
+      if (existingReaction) {
+        // Update existing aggregated reaction
+        if (!existingReaction.userIds.includes(userId)) {
+          existingReaction.count++
+          existingReaction.userIds.push(userId)
+          // Update currentUserReacted if this is the current user
+          if (userId === useUserStore().userId) {
+            existingReaction.currentUserReacted = true
+          }
+        }
+      } else {
+        // Create new aggregated reaction
         message.reactions.push({
           emoji,
           count: 1,
           userIds: [userId],
-          currentUserReacted: false,
-          userId,
+          currentUserReacted: userId === useUserStore().userId,
         })
       }
     },
@@ -512,11 +522,28 @@ export const useChatStore = defineStore('chat', {
       const message = messages.find((m) => m.id === messageId)
       if (!message || !message.reactions) return
 
-      const index = message.reactions.findIndex(
-        (r) => r.emoji === emoji && r.userId === userId
-      )
-      if (index !== -1) {
-        message.reactions.splice(index, 1)
+      // Find aggregated reaction for this emoji
+      const reaction = message.reactions.find((r) => r.emoji === emoji)
+      if (!reaction) return
+
+      // Remove userId from the aggregated reaction
+      const userIdIndex = reaction.userIds.indexOf(userId)
+      if (userIdIndex !== -1) {
+        reaction.userIds.splice(userIdIndex, 1)
+        reaction.count--
+
+        // Update currentUserReacted if this is the current user
+        if (userId === useUserStore().userId) {
+          reaction.currentUserReacted = false
+        }
+
+        // Remove the reaction entirely if count reaches 0
+        if (reaction.count === 0) {
+          const reactionIndex = message.reactions.indexOf(reaction)
+          if (reactionIndex !== -1) {
+            message.reactions.splice(reactionIndex, 1)
+          }
+        }
       }
     },
 

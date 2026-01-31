@@ -7,6 +7,7 @@ import com.lumichat.dto.response.UserResponse;
 import com.lumichat.entity.Conversation;
 import com.lumichat.entity.User;
 import com.lumichat.entity.UserConversation;
+import com.lumichat.exception.BadRequestException;
 import com.lumichat.exception.NotFoundException;
 import com.lumichat.repository.ConversationRepository;
 import com.lumichat.repository.MessageRepository;
@@ -196,7 +197,7 @@ public class ConversationService {
      */
     @Transactional
     public void pinMessage(Long userId, Long conversationId, Long messageId) {
-        UserConversation uc = userConversationRepository.findByUserIdAndConversationId(userId, conversationId)
+        UserConversation uc = userConversationRepository.findByUserIdAndConversationIdForUpdate(userId, conversationId)
                 .orElseThrow(() -> new NotFoundException("Conversation not found"));
 
         // Get current pinned messages
@@ -231,7 +232,7 @@ public class ConversationService {
      */
     @Transactional
     public void unpinMessage(Long userId, Long conversationId, Long messageId) {
-        UserConversation uc = userConversationRepository.findByUserIdAndConversationId(userId, conversationId)
+        UserConversation uc = userConversationRepository.findByUserIdAndConversationIdForUpdate(userId, conversationId)
                 .orElseThrow(() -> new NotFoundException("Conversation not found"));
 
         Long[] pinnedIds = uc.getPinnedMessageIds();

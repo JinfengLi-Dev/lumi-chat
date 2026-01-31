@@ -153,7 +153,6 @@ export interface MessageReaction {
   count: number
   userIds: number[]
   currentUserReacted: boolean
-  userId?: number
 }
 
 export interface MessageMetadata {

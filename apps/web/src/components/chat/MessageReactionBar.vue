@@ -4,7 +4,7 @@ import { Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import type { MessageReaction } from '@/types'
-import { apiClient } from '@/api/client'
+import { messageApi } from '@/api'
 
 const props = defineProps<{
   messageId: number
@@ -22,30 +22,9 @@ const showEmojiPicker = ref(false)
 // Common emojis for quick access
 const quickEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🎉', '🔥']
 
-// Group reactions by emoji
+// Reactions are already aggregated from the backend, just pass them through
 const groupedReactions = computed(() => {
-  const groups = new Map<string, MessageReaction>()
-  const currentUserId = userStore.userId
-
-  for (const reaction of props.reactions) {
-    const existing = groups.get(reaction.emoji)
-    if (existing && reaction.userId !== undefined) {
-      existing.count++
-      existing.userIds.push(reaction.userId)
-      if (currentUserId && reaction.userId === currentUserId) {
-        existing.currentUserReacted = true
-      }
-    } else if (reaction.userId !== undefined) {
-      groups.set(reaction.emoji, {
-        emoji: reaction.emoji,
-        count: 1,
-        userIds: [reaction.userId],
-        currentUserReacted: currentUserId !== undefined && reaction.userId === currentUserId
-      })
-    }
-  }
-
-  return Array.from(groups.values())
+  return props.reactions
 })
 
 async function handleReactionClick(emoji: string, currentUserReacted: boolean) {
@@ -54,11 +33,11 @@ async function handleReactionClick(emoji: string, currentUserReacted: boolean) {
   try {
     if (currentUserReacted) {
       // Remove reaction
-      await apiClient.delete(`/messages/${props.messageId}/reactions/${encodeURIComponent(emoji)}`)
+      await messageApi.removeReaction(props.messageId, emoji)
       emit('reaction-removed', props.messageId, emoji)
     } else {
       // Add reaction
-      await apiClient.post(`/messages/${props.messageId}/reactions`, { emoji })
+      await messageApi.addReaction(props.messageId, emoji)
       emit('reaction-added', props.messageId, emoji)
     }
   } catch (error) {
@@ -77,7 +56,7 @@ async function handleEmojiSelect(emoji: string) {
   }
 
   try {
-    await apiClient.post(`/messages/${props.messageId}/reactions`, { emoji })
+    await messageApi.addReaction(props.messageId, emoji)
     emit('reaction-added', props.messageId, emoji)
   } catch (error) {
     console.error('Failed to add reaction:', error)

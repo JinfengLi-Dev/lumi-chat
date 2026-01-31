@@ -101,7 +101,10 @@
       "Bash(services/api/src/main/java/com/lumichat/controller/HealthController.java )",
       "Bash(services/api/src/test/java/com/lumichat/controller/HealthControllerTest.java )",
       "Bash(services/im-server/src/main/java/com/lumichat/im/controller/HealthController.java)",
-      "Bash(git -C /home/msi_lumikra/projects/lumi-chat commit -m \"$\\(cat <<''EOF''\nfeat: Add comprehensive health check endpoints for production readiness\n\nAPI Server:\n- Enhance /health to check Database, Redis, and MinIO connectivity\n- Add /health/live for Kubernetes liveness probe\n- Add /health/ready for Kubernetes readiness probe\n- Return 503 status when any dependency is unhealthy\n- Add comprehensive test coverage for HealthController\n\nIM Server:\n- Add /health endpoint with Redis and WebSocket status\n- Add /health/live and /health/ready for Kubernetes\n- Add /health/sessions for session statistics\n\nUpdate DEVELOPMENT_PLAN.md:\n- Mark Phase B \\(Dark Mode, Keyboard Shortcuts\\) complete\n- Mark Phase C \\(Rate Limiting, Health Checks\\) complete\n- Update test status \\(888 frontend tests passing\\)\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git -C /home/msi_lumikra/projects/lumi-chat commit -m \"$\\(cat <<''EOF''\nfeat: Add comprehensive health check endpoints for production readiness\n\nAPI Server:\n- Enhance /health to check Database, Redis, and MinIO connectivity\n- Add /health/live for Kubernetes liveness probe\n- Add /health/ready for Kubernetes readiness probe\n- Return 503 status when any dependency is unhealthy\n- Add comprehensive test coverage for HealthController\n\nIM Server:\n- Add /health endpoint with Redis and WebSocket status\n- Add /health/live and /health/ready for Kubernetes\n- Add /health/sessions for session statistics\n\nUpdate DEVELOPMENT_PLAN.md:\n- Mark Phase B \\(Dark Mode, Keyboard Shortcuts\\) complete\n- Mark Phase C \\(Rate Limiting, Health Checks\\) complete\n- Update test status \\(888 frontend tests passing\\)\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(netstat:*)",
+      "Bash(ss:*)",
+      "Bash(./gradlew build:*)"
     ],
     "deny": [],
     "ask": []
