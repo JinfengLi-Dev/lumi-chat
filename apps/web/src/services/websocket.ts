@@ -48,6 +48,7 @@ export const ProtocolType = {
   ONLINE_STATUS_RESPONSE: 123,
   ONLINE_STATUS_CHANGE: 124,
   READ_RECEIPT_NOTIFY: 125,
+  REACTION_NOTIFY: 126,
 
   // System Messages
   KICKED_OFFLINE: 200,
@@ -99,6 +100,7 @@ export interface WebSocketEventHandlers {
   onOnlineStatusChange?: (userId: number, isOnline: boolean) => void
   onOnlineStatusResponse?: (statuses: Record<number, boolean>) => void
   onReadReceiptNotify?: (conversationId: number, readerId: number, lastReadMsgId: number) => void
+  onReactionNotify?: (action: string, userId: number, messageId: number, conversationId: number, emoji: string) => void
   onOfflineMessages?: (messages: OfflineMessage[]) => void
   onOfflineSyncComplete?: (count: number) => void
   onKickedOffline?: (reason: string) => void
@@ -344,6 +346,10 @@ class WebSocketService {
           this.handleReadReceiptNotify(packet.data as { conversationId: number; readerId: number; lastReadMsgId: number })
           break
 
+        case ProtocolType.REACTION_NOTIFY:
+          this.handleReactionNotify(packet.data as { action: string; userId: number; messageId: number; conversationId: number; emoji: string })
+          break
+
         case ProtocolType.OFFLINE_SYNC_RESPONSE:
           this.handleOfflineSyncResponse(packet.data as { success: boolean; messages: OfflineMessage[]; count: number })
           break
@@ -406,6 +412,10 @@ class WebSocketService {
   private handleReadReceiptNotify(data: { conversationId: number; readerId: number; lastReadMsgId: number }): void {
     console.log('[WS Service] READ_RECEIPT_NOTIFY received in service:', data)
     this.handlers.onReadReceiptNotify?.(data.conversationId, data.readerId, data.lastReadMsgId)
+  }
+
+  private handleReactionNotify(data: { action: string; userId: number; messageId: number; conversationId: number; emoji: string }): void {
+    this.handlers.onReactionNotify?.(data.action, data.userId, data.messageId, data.conversationId, data.emoji)
   }
 
   private handleOfflineSyncResponse(data: { success: boolean; messages: OfflineMessage[]; count: number }): void {

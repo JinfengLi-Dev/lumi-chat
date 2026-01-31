@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { User as UserIcon, ChatDotRound, Plus } from '@element-plus/icons-vue'
+import { useFriendStore } from '@/stores/friend'
 import type { User } from '@/types'
 
 const props = defineProps<{
@@ -17,18 +18,18 @@ const emit = defineEmits<{
   (e: 'add-friend', user: User): void
 }>()
 
+const friendStore = useFriendStore()
+
 const displayName = computed(() => props.user.nickname || 'Unknown User')
 
+const isOnline = computed(() => friendStore.isUserOnline(props.user.id))
+
 const statusText = computed(() => {
-  if (props.user.status === 'active') return 'Online'
-  if (props.user.status === 'inactive') return 'Offline'
-  return props.user.status
+  return isOnline.value ? 'Online' : 'Offline'
 })
 
 const statusClass = computed(() => {
-  if (props.user.status === 'active') return 'status-online'
-  if (props.user.status === 'inactive') return 'status-offline'
-  return 'status-other'
+  return isOnline.value ? 'status-online' : 'status-offline'
 })
 
 function handleCardClick() {
@@ -50,9 +51,15 @@ function handleAddFriend(e: Event) {
   <div class="user-card-message" @click="handleCardClick">
     <!-- User info section -->
     <div class="user-info">
-      <el-avatar :src="user.avatar" :size="48" shape="square" class="user-avatar">
-        {{ displayName.charAt(0) }}
-      </el-avatar>
+      <div class="avatar-wrapper">
+        <el-avatar :src="user.avatar" :size="48" shape="square" class="user-avatar">
+          {{ displayName.charAt(0) }}
+        </el-avatar>
+        <span
+          class="online-indicator"
+          :class="{ online: isOnline }"
+        />
+      </div>
 
       <div class="user-details">
         <div class="user-name">{{ displayName }}</div>
@@ -117,8 +124,28 @@ function handleAddFriend(e: Event) {
   margin-bottom: 8px;
 }
 
+.avatar-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
 .user-avatar {
   flex-shrink: 0;
+}
+
+.online-indicator {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--el-text-color-secondary);
+  border: 2px solid var(--el-bg-color);
+}
+
+.online-indicator.online {
+  background-color: var(--el-color-success);
 }
 
 .user-details {

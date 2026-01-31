@@ -1,8 +1,10 @@
 package com.lumichat.controller;
 
+import com.lumichat.dto.request.AddReactionRequest;
 import com.lumichat.dto.request.SendMessageRequest;
 import com.lumichat.dto.response.ApiResponse;
 import com.lumichat.dto.response.MessageResponse;
+import com.lumichat.dto.response.ReactionResponse;
 import com.lumichat.security.UserPrincipal;
 import com.lumichat.service.MessageService;
 import jakarta.validation.Valid;
@@ -116,6 +118,44 @@ public class MessageController {
             @PathVariable String msgId) {
         messageService.deleteMessage(principal.getId(), msgId);
         return ApiResponse.success();
+    }
+
+    /**
+     * Add a reaction to a message
+     * POST /messages/{messageId}/reactions
+     */
+    @PostMapping("/messages/{messageId}/reactions")
+    public ApiResponse<Void> addReaction(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long messageId,
+            @Valid @RequestBody AddReactionRequest request) {
+        messageService.addReaction(principal.getId(), messageId, request.getEmoji());
+        return ApiResponse.success();
+    }
+
+    /**
+     * Remove a reaction from a message
+     * DELETE /messages/{messageId}/reactions/{emoji}
+     */
+    @DeleteMapping("/messages/{messageId}/reactions/{emoji}")
+    public ApiResponse<Void> removeReaction(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long messageId,
+            @PathVariable String emoji) {
+        messageService.removeReaction(principal.getId(), messageId, emoji);
+        return ApiResponse.success();
+    }
+
+    /**
+     * Get all reactions for a message
+     * GET /messages/{messageId}/reactions
+     */
+    @GetMapping("/messages/{messageId}/reactions")
+    public ApiResponse<List<ReactionResponse>> getReactions(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long messageId) {
+        List<ReactionResponse> reactions = messageService.getReactions(principal.getId(), messageId);
+        return ApiResponse.success(reactions);
     }
 
     // Inner class for forward request

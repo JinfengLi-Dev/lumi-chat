@@ -123,6 +123,15 @@ export const useWebSocketStore = defineStore('websocket', {
           chatStore.handleReadReceiptNotify(conversationId, readerId, lastReadMsgId)
         },
 
+        onReactionNotify: (action, userId, messageId, conversationId, emoji) => {
+          const chatStore = useChatStore()
+          if (action === 'add') {
+            chatStore.handleReactionAdded(conversationId, messageId, userId, emoji)
+          } else if (action === 'remove') {
+            chatStore.handleReactionRemoved(conversationId, messageId, userId, emoji)
+          }
+        },
+
         onOfflineMessages: (messages) => {
           console.log('[WS] Received offline messages:', messages.length)
           const chatStore = useChatStore()

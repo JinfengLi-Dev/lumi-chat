@@ -192,6 +192,98 @@ public class ConversationService {
     }
 
     /**
+     * Pin a message in a conversation
+     */
+    @Transactional
+    public void pinMessage(Long userId, Long conversationId, Long messageId) {
+        UserConversation uc = userConversationRepository.findByUserIdAndConversationId(userId, conversationId)
+                .orElseThrow(() -> new NotFoundException("Conversation not found"));
+
+        // Get current pinned messages
+        Long[] pinnedIds = uc.getPinnedMessageIds();
+        if (pinnedIds == null) {
+            pinnedIds = new Long[0];
+        }
+
+        // Check if already pinned
+        for (Long id : pinnedIds) {
+            if (id.equals(messageId)) {
+                log.debug("Message {} already pinned in conversation {}", messageId, conversationId);
+                return;
+            }
+        }
+
+        // Add to pinned messages (limit to 10)
+        if (pinnedIds.length >= 10) {
+            throw new BadRequestException("Maximum 10 messages can be pinned");
+        }
+
+        Long[] newPinnedIds = java.util.Arrays.copyOf(pinnedIds, pinnedIds.length + 1);
+        newPinnedIds[pinnedIds.length] = messageId;
+        uc.setPinnedMessageIds(newPinnedIds);
+        userConversationRepository.save(uc);
+
+        log.info("User {} pinned message {} in conversation {}", userId, messageId, conversationId);
+    }
+
+    /**
+     * Unpin a message in a conversation
+     */
+    @Transactional
+    public void unpinMessage(Long userId, Long conversationId, Long messageId) {
+        UserConversation uc = userConversationRepository.findByUserIdAndConversationId(userId, conversationId)
+                .orElseThrow(() -> new NotFoundException("Conversation not found"));
+
+        Long[] pinnedIds = uc.getPinnedMessageIds();
+        if (pinnedIds == null || pinnedIds.length == 0) {
+            return;
+        }
+
+        // Remove the message ID
+        List<Long> newPinnedIds = new ArrayList<>();
+        boolean found = false;
+        for (Long id : pinnedIds) {
+            if (!id.equals(messageId)) {
+                newPinnedIds.add(id);
+            } else {
+                found = true;
+            }
+        }
+
+        if (found) {
+            uc.setPinnedMessageIds(newPinnedIds.toArray(new Long[0]));
+            userConversationRepository.save(uc);
+            log.info("User {} unpinned message {} in conversation {}", userId, messageId, conversationId);
+        }
+    }
+
+    /**
+     * Get pinned messages for a conversation
+     */
+    public List<MessageResponse> getPinnedMessages(Long userId, Long conversationId) {
+        UserConversation uc = userConversationRepository.findByUserIdAndConversationId(userId, conversationId)
+                .orElseThrow(() -> new NotFoundException("Conversation not found"));
+
+        Long[] pinnedIds = uc.getPinnedMessageIds();
+        if (pinnedIds == null || pinnedIds.length == 0) {
+            return List.of();
+        }
+
+        // Fetch messages by IDs
+        List<com.lumichat.entity.Message> messages = messageRepository.findAllById(java.util.Arrays.asList(pinnedIds));
+
+        // Return in the order they were pinned
+        return java.util.Arrays.stream(pinnedIds)
+                .map(id -> messages.stream()
+                        .filter(m -> m.getId().equals(id))
+                        .findFirst()
+                        .map(MessageResponse::fromWithSender)
+                        .orElse(null))
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
+
+    /**
      * Create or get private conversation between two users
      */
     @Transactional

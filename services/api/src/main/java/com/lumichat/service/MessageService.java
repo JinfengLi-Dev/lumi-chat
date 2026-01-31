@@ -3,14 +3,17 @@ package com.lumichat.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lumichat.dto.request.SendMessageRequest;
 import com.lumichat.dto.response.MessageResponse;
+import com.lumichat.dto.response.ReactionResponse;
 import com.lumichat.entity.Conversation;
 import com.lumichat.entity.Message;
+import com.lumichat.entity.MessageReaction;
 import com.lumichat.entity.User;
 import com.lumichat.entity.UserConversation;
 import com.lumichat.exception.BadRequestException;
 import com.lumichat.exception.ForbiddenException;
 import com.lumichat.exception.NotFoundException;
 import com.lumichat.repository.ConversationRepository;
+import com.lumichat.repository.MessageReactionRepository;
 import com.lumichat.repository.MessageRepository;
 import com.lumichat.repository.UserConversationRepository;
 import com.lumichat.repository.UserRepository;
@@ -36,6 +39,7 @@ import java.util.UUID;
 public class MessageService {
 
     private final MessageRepository messageRepository;
+    private final MessageReactionRepository messageReactionRepository;
     private final ConversationRepository conversationRepository;
     private final UserConversationRepository userConversationRepository;
     private final UserRepository userRepository;
@@ -44,6 +48,7 @@ public class MessageService {
     private final Clock clock;
 
     private static final String REDIS_CHANNEL_MESSAGES = "im:messages";
+    private static final String REDIS_CHANNEL_REACTIONS = "im:reactions";
 
     /**
      * Get messages for a conversation with pagination
@@ -277,8 +282,97 @@ public class MessageService {
             throw new ForbiddenException("You can only delete your own messages");
         }
 
+        // Delete all reactions for this message
+        messageReactionRepository.deleteAllByMessageId(message.getId());
+
         messageRepository.delete(message);
         log.info("User {} deleted message {}", userId, msgId);
+    }
+
+    /**
+     * Add a reaction to a message
+     */
+    @Transactional
+    public void addReaction(Long userId, Long messageId, String emoji) {
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new NotFoundException("Message not found"));
+
+        // Verify user has access to the conversation
+        userConversationRepository.findByUserIdAndConversationId(userId, message.getConversation().getId())
+                .orElseThrow(() -> new NotFoundException("Conversation not found"));
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        // Check if user already reacted with this emoji
+        if (messageReactionRepository.existsByMessageIdAndUserIdAndEmoji(messageId, userId, emoji)) {
+            log.debug("User {} already reacted to message {} with {}", userId, messageId, emoji);
+            return;
+        }
+
+        // Create new reaction
+        MessageReaction reaction = MessageReaction.builder()
+                .message(message)
+                .user(user)
+                .emoji(emoji)
+                .build();
+
+        messageReactionRepository.save(reaction);
+
+        // Publish reaction to Redis for real-time delivery
+        publishReactionToRedis(userId, messageId, message.getConversation().getId(), emoji, "add");
+
+        log.info("User {} added reaction {} to message {}", userId, emoji, messageId);
+    }
+
+    /**
+     * Remove a reaction from a message
+     */
+    @Transactional
+    public void removeReaction(Long userId, Long messageId, String emoji) {
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new NotFoundException("Message not found"));
+
+        // Verify user has access to the conversation
+        userConversationRepository.findByUserIdAndConversationId(userId, message.getConversation().getId())
+                .orElseThrow(() -> new NotFoundException("Conversation not found"));
+
+        // Delete the reaction
+        messageReactionRepository.deleteByMessageIdAndUserIdAndEmoji(messageId, userId, emoji);
+
+        // Publish reaction removal to Redis for real-time delivery
+        publishReactionToRedis(userId, messageId, message.getConversation().getId(), emoji, "remove");
+
+        log.info("User {} removed reaction {} from message {}", userId, emoji, messageId);
+    }
+
+    /**
+     * Get all reactions for a message
+     */
+    public List<ReactionResponse> getReactions(Long userId, Long messageId) {
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new NotFoundException("Message not found"));
+
+        // Verify user has access to the conversation
+        userConversationRepository.findByUserIdAndConversationId(userId, message.getConversation().getId())
+                .orElseThrow(() -> new NotFoundException("Conversation not found"));
+
+        List<MessageReaction> reactions = messageReactionRepository.findByMessageId(messageId);
+
+        // Group reactions by emoji
+        Map<String, List<MessageReaction>> reactionsByEmoji = reactions.stream()
+                .collect(java.util.stream.Collectors.groupingBy(MessageReaction::getEmoji));
+
+        // Build response
+        return reactionsByEmoji.entrySet().stream()
+                .map(entry -> {
+                    String emoji = entry.getKey();
+                    List<Long> userIds = entry.getValue().stream()
+                            .map(r -> r.getUser().getId())
+                            .toList();
+                    return ReactionResponse.of(emoji, (long) userIds.size(), userIds, userId);
+                })
+                .toList();
     }
 
     private String generateMsgId() {
@@ -354,6 +448,28 @@ public class MessageService {
             // Don't throw - message is saved to DB, will be delivered via offline queue when user reconnects
             log.error("Failed to publish message {} to Redis (will be delivered via offline queue): {}",
                     message.getMsgId(), e.getMessage());
+        }
+    }
+
+    /**
+     * Publish reaction to Redis for real-time delivery to online users
+     */
+    private void publishReactionToRedis(Long userId, Long messageId, Long conversationId, String emoji, String action) {
+        try {
+            Map<String, Object> event = new LinkedHashMap<>();
+            event.put("type", "reaction");
+            event.put("action", action); // "add" or "remove"
+            event.put("userId", userId);
+            event.put("messageId", messageId);
+            event.put("conversationId", conversationId);
+            event.put("emoji", emoji);
+
+            String json = objectMapper.writeValueAsString(event);
+            redisTemplate.convertAndSend(REDIS_CHANNEL_REACTIONS, json);
+
+            log.debug("Published reaction {} to Redis channel {}", action, REDIS_CHANNEL_REACTIONS);
+        } catch (Exception e) {
+            log.error("Failed to publish reaction to Redis: {}", e.getMessage());
         }
     }
 }

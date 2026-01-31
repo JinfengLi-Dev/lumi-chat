@@ -30,6 +30,7 @@ public final class ProtocolType {
     public static final int ONLINE_STATUS_RESPONSE = 123; // Response with user online statuses
     public static final int ONLINE_STATUS_CHANGE = 124;   // Broadcast when a user's status changes
     public static final int READ_RECEIPT_NOTIFY = 125;    // Notify sender that messages were read
+    public static final int REACTION_NOTIFY = 126;        // Notify when a reaction is added/removed
 
     // System Messages
     public static final int KICKED_OFFLINE = 200;

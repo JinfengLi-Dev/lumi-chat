@@ -39,6 +39,7 @@ public class RedisConfig {
         container.addMessageListener(typingListener(), new PatternTopic("im:typing"));
         container.addMessageListener(readStatusListener(), new PatternTopic("im:read_status"));
         container.addMessageListener(recallListener(), new PatternTopic("im:recall"));
+        container.addMessageListener(reactionListener(), new PatternTopic("im:reactions"));
 
         return container;
     }
@@ -226,6 +227,40 @@ public class RedisConfig {
                         userId, msgId, participants.size());
             } catch (Exception e) {
                 log.error("Failed to process recall", e);
+            }
+        };
+    }
+
+    @Bean
+    public MessageListener reactionListener() {
+        return (Message message, byte[] pattern) -> {
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> data = objectMapper.readValue(message.getBody(), Map.class);
+                String action = (String) data.get("action");
+                Long userId = ((Number) data.get("userId")).longValue();
+                Long messageId = ((Number) data.get("messageId")).longValue();
+                Long conversationId = ((Number) data.get("conversationId")).longValue();
+                String emoji = (String) data.get("emoji");
+
+                // Get conversation participants and broadcast reaction notification
+                List<Long> participants = apiClient.getConversationParticipants(conversationId);
+
+                for (Long participantId : participants) {
+                    Packet packet = Packet.of(ProtocolType.REACTION_NOTIFY, Map.of(
+                            "action", action,
+                            "userId", userId,
+                            "messageId", messageId,
+                            "conversationId", conversationId,
+                            "emoji", emoji
+                    ));
+                    messageProcessor.sendToUser(participantId, packet);
+                }
+
+                log.debug("Reaction notification broadcast: action={}, userId={}, messageId={}, emoji={}, participants={}",
+                        action, userId, messageId, emoji, participants.size());
+            } catch (Exception e) {
+                log.error("Failed to process reaction notification", e);
             }
         };
     }

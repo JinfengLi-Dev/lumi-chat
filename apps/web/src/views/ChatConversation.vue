@@ -12,6 +12,8 @@ import { fileApi, friendApi, messageApi, conversationApi } from '@/api'
 import type { UploadProgress } from '@/api/file'
 import type { Message, User, Group } from '@/types'
 import MessageContextMenu from '@/components/chat/MessageContextMenu.vue'
+import MessageReactionBar from '@/components/chat/MessageReactionBar.vue'
+import PinnedMessagesPanel from '@/components/chat/PinnedMessagesPanel.vue'
 import ForwardMessageDialog from '@/components/chat/ForwardMessageDialog.vue'
 import EmojiPicker from '@/components/chat/EmojiPicker.vue'
 import ImageLightbox from '@/components/chat/ImageLightbox.vue'
@@ -95,6 +97,10 @@ const searchResults = ref<Message[]>([])
 const isSearching = ref(false)
 const showSearchResults = ref(false)
 
+// Pinned messages state
+const pinnedMessages = ref<Message[]>([])
+const showPinnedPanel = ref(true)
+
 // Background state
 const backgroundInputRef = ref<HTMLInputElement>()
 const isUploadingBackground = ref(false)
@@ -144,6 +150,11 @@ const messageVirtualizer = useVirtualizer({
   getItemKey: (index: number) => messages.value[index]?.msgId || index,
 })
 
+// Check if a message is pinned
+const isMessagePinned = computed(() => (messageId: number) => {
+  return pinnedMessages.value.some(m => m.id === messageId)
+})
+
 // Typing indicator - connected to WebSocket store
 const typingUsers = computed(() =>
   chatStore.currentTypingUsers.map((t) => ({
@@ -182,6 +193,7 @@ watch(conversationId, async (id) => {
   if (id) {
     chatStore.setCurrentConversation(id)
     await loadMessages()
+    await fetchPinnedMessages()
   }
 }, { immediate: true })
 
@@ -361,6 +373,16 @@ function handleContextMenuQuote() {
   if (!selectedMessage.value) return
   quotedMessage.value = selectedMessage.value
   // Focus the input
+}
+
+function handleContextMenuPin() {
+  if (!selectedMessage.value) return
+  handlePinMessage(selectedMessage.value.id)
+}
+
+function handleContextMenuUnpin() {
+  if (!selectedMessage.value) return
+  handleUnpinMessage(selectedMessage.value.id)
 }
 
 function clearQuotedMessage() {
@@ -582,6 +604,61 @@ async function handleGroupCardSelect(group: Group) {
     scrollToBottom()
   } catch {
     ElMessage.error('Failed to send group card')
+  }
+}
+
+// Reaction handlers
+function handleReactionAdded(messageId: number, emoji: string) {
+  console.log('Reaction added:', messageId, emoji)
+}
+
+function handleReactionRemoved(messageId: number, emoji: string) {
+  console.log('Reaction removed:', messageId, emoji)
+}
+
+// Pinned messages handlers
+async function fetchPinnedMessages() {
+  if (!conversationId.value) return
+  try {
+    pinnedMessages.value = await conversationApi.getPinnedMessages(conversationId.value)
+  } catch (error) {
+    console.error('Failed to fetch pinned messages:', error)
+  }
+}
+
+async function handlePinMessage(messageId: number) {
+  if (!conversationId.value) return
+  try {
+    await conversationApi.pinMessage(conversationId.value, messageId)
+    await fetchPinnedMessages()
+    ElMessage.success('Message pinned')
+  } catch (error) {
+    console.error('Failed to pin message:', error)
+    ElMessage.error(getErrorMessage(error))
+  }
+}
+
+async function handleUnpinMessage(messageId: number) {
+  if (!conversationId.value) return
+  try {
+    await conversationApi.unpinMessage(conversationId.value, messageId)
+    await fetchPinnedMessages()
+    ElMessage.success('Message unpinned')
+  } catch (error) {
+    console.error('Failed to unpin message:', error)
+    ElMessage.error(getErrorMessage(error))
+  }
+}
+
+function handleJumpToMessage(messageId: number) {
+  // Find the message index in the current messages
+  const messageIndex = messages.value.findIndex(m => m.id === messageId)
+
+  if (messageIndex !== -1) {
+    // Scroll to the message using the virtualizer
+    messageVirtualizer.value.scrollToIndex(messageIndex, { align: 'center' })
+  } else {
+    ElMessage.warning('Message not found in current view')
   }
 }
 
@@ -847,6 +924,16 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <!-- Pinned Messages Panel -->
+    <PinnedMessagesPanel
+      v-if="showPinnedPanel && pinnedMessages.length > 0"
+      :pinned-messages="pinnedMessages"
+      :conversation-id="conversationId"
+      @jump-to="handleJumpToMessage"
+      @unpin="handleUnpinMessage"
+      @close="showPinnedPanel = false"
+    />
+
     <!-- Messages with Virtual Scrolling -->
     <div
       ref="messageListRef"
@@ -984,6 +1071,15 @@ onUnmounted(() => {
               <div v-else class="content">
                 [{{ messages[virtualRow.index].msgType }}]
               </div>
+
+              <!-- Message reactions -->
+              <MessageReactionBar
+                v-if="messages[virtualRow.index].id && !messages[virtualRow.index].recalledAt"
+                :message-id="messages[virtualRow.index].id"
+                :reactions="messages[virtualRow.index].reactions || []"
+                @reaction-added="handleReactionAdded"
+                @reaction-removed="handleReactionRemoved"
+              />
 
               <div class="message-footer">
                 <span class="time">{{ formatTime(messages[virtualRow.index].serverCreatedAt) }}</span>
@@ -1326,11 +1422,14 @@ onUnmounted(() => {
     :y="contextMenuY"
     :message="selectedMessage"
     :is-self="selectedMessage ? isSelf(selectedMessage.senderId) : false"
+    :is-pinned="selectedMessage ? isMessagePinned(selectedMessage.id) : false"
     @copy="handleContextMenuCopy"
     @recall="handleContextMenuRecall"
     @forward="handleContextMenuForward"
     @delete="handleContextMenuDelete"
     @quote="handleContextMenuQuote"
+    @pin="handleContextMenuPin"
+    @unpin="handleContextMenuUnpin"
   />
 
   <!-- Forward Dialog -->

@@ -50,6 +50,10 @@ public class UserConversation {
     @JdbcTypeCode(SqlTypes.ARRAY)
     private Long[] atMsgIds;
 
+    @Column(name = "pinned_message_ids", columnDefinition = "bigint[]")
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    private Long[] pinnedMessageIds;
+
     private Long lastReadMsgId;
 
     // Timestamp when user cleared messages; only show messages after this time

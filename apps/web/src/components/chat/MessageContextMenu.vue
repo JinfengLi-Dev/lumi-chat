@@ -10,6 +10,7 @@ import {
   FolderOpened,
   Download,
   Link,
+  CollectionTag,
 } from '@element-plus/icons-vue'
 import type { Message } from '@/types'
 import { fileApi } from '@/api/file'
@@ -20,6 +21,7 @@ const props = defineProps<{
   y: number
   message: Message | null
   isSelf: boolean
+  isPinned?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -29,6 +31,8 @@ const emit = defineEmits<{
   (e: 'forward'): void
   (e: 'delete'): void
   (e: 'quote'): void
+  (e: 'pin'): void
+  (e: 'unpin'): void
 }>()
 
 const menuRef = ref<HTMLDivElement>()
@@ -151,6 +155,15 @@ async function handleDelete() {
   emit('update:visible', false)
 }
 
+function handlePin() {
+  if (props.isPinned) {
+    emit('unpin')
+  } else {
+    emit('pin')
+  }
+  emit('update:visible', false)
+}
+
 function handleQuote() {
   emit('quote')
   emit('update:visible', false)
@@ -232,6 +245,11 @@ onUnmounted(() => {
       <div class="context-menu-item" @click="handleQuote">
         <el-icon><ChatLineSquare /></el-icon>
         <span>Quote</span>
+      </div>
+
+      <div class="context-menu-item" @click="handlePin">
+        <el-icon><CollectionTag /></el-icon>
+        <span>{{ isPinned ? 'Unpin' : 'Pin' }}</span>
       </div>
 
       <div class="context-menu-item" @click="handleForward">

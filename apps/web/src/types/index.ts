@@ -110,6 +110,7 @@ export interface Conversation {
   isMuted: boolean
   isPinned: boolean
   atMsgIds?: number[]
+  pinnedMessageIds?: number[]
   draft?: string
   backgroundUrl?: string
 }
@@ -144,6 +145,15 @@ export interface Message {
   serverCreatedAt: string
   recalledAt?: string
   status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed'
+  reactions?: MessageReaction[]
+}
+
+export interface MessageReaction {
+  emoji: string
+  count: number
+  userIds: number[]
+  currentUserReacted: boolean
+  userId?: number
 }
 
 export interface MessageMetadata {

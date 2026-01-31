@@ -477,6 +477,49 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    // Handle reaction added event from WebSocket
+    handleReactionAdded(conversationId: number, messageId: number, userId: number, emoji: string) {
+      const messages = this.messages.get(conversationId)
+      if (!messages) return
+
+      const message = messages.find((m) => m.id === messageId)
+      if (!message) return
+
+      if (!message.reactions) {
+        message.reactions = []
+      }
+
+      // Check if this exact reaction already exists
+      const existingReaction = message.reactions.find(
+        (r) => r.emoji === emoji && r.userId === userId
+      )
+      if (!existingReaction) {
+        message.reactions.push({
+          emoji,
+          count: 1,
+          userIds: [userId],
+          currentUserReacted: false,
+          userId,
+        })
+      }
+    },
+
+    // Handle reaction removed event from WebSocket
+    handleReactionRemoved(conversationId: number, messageId: number, userId: number, emoji: string) {
+      const messages = this.messages.get(conversationId)
+      if (!messages) return
+
+      const message = messages.find((m) => m.id === messageId)
+      if (!message || !message.reactions) return
+
+      const index = message.reactions.findIndex(
+        (r) => r.emoji === emoji && r.userId === userId
+      )
+      if (index !== -1) {
+        message.reactions.splice(index, 1)
+      }
+    },
+
     reset() {
       // Clear all typing timeouts
       for (const conversationTyping of this.typingUsers.values()) {

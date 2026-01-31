@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Medal, User, StarFilled } from '@element-plus/icons-vue'
+import { useFriendStore } from '@/stores/friend'
 import type { GroupMember } from '@/api/group'
 
 const props = defineProps<{
@@ -9,6 +10,8 @@ const props = defineProps<{
   ownerId: number
   isOwnerOrAdmin: boolean
 }>()
+
+const friendStore = useFriendStore()
 
 const emit = defineEmits<{
   (e: 'remove-member', member: GroupMember): void
@@ -69,6 +72,10 @@ function getDisplayName(member: GroupMember): string {
         <el-avatar :src="member.avatar" :size="36" shape="circle">
           {{ getDisplayName(member).charAt(0) }}
         </el-avatar>
+        <span
+          class="online-indicator"
+          :class="{ online: friendStore.isUserOnline(member.userId) }"
+        />
       </div>
 
       <div class="member-info">
@@ -144,7 +151,23 @@ function getDisplayName(member: GroupMember): string {
 }
 
 .member-avatar {
+  position: relative;
   flex-shrink: 0;
+}
+
+.online-indicator {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--el-text-color-secondary);
+  border: 2px solid var(--el-bg-color);
+}
+
+.online-indicator.online {
+  background-color: var(--el-color-success);
 }
 
 .member-info {

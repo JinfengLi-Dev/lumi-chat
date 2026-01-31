@@ -2,6 +2,7 @@ package com.lumichat.controller;
 
 import com.lumichat.dto.response.ApiResponse;
 import com.lumichat.dto.response.ConversationResponse;
+import com.lumichat.dto.response.MessageResponse;
 import com.lumichat.security.UserPrincipal;
 import com.lumichat.service.ConversationService;
 import lombok.RequiredArgsConstructor;
@@ -154,6 +155,44 @@ public class ConversationController {
             @RequestBody BackgroundRequest request) {
         conversationService.updateBackground(principal.getId(), id, request.backgroundUrl());
         return ApiResponse.success();
+    }
+
+    /**
+     * Pin a message
+     * POST /conversations/{id}/pin/{messageId}
+     */
+    @PostMapping("/{id}/pin/{messageId}")
+    public ApiResponse<Void> pinMessage(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long id,
+            @PathVariable Long messageId) {
+        conversationService.pinMessage(principal.getId(), id, messageId);
+        return ApiResponse.success();
+    }
+
+    /**
+     * Unpin a message
+     * DELETE /conversations/{id}/pin/{messageId}
+     */
+    @DeleteMapping("/{id}/pin/{messageId}")
+    public ApiResponse<Void> unpinMessage(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long id,
+            @PathVariable Long messageId) {
+        conversationService.unpinMessage(principal.getId(), id, messageId);
+        return ApiResponse.success();
+    }
+
+    /**
+     * Get pinned messages
+     * GET /conversations/{id}/pinned
+     */
+    @GetMapping("/{id}/pinned")
+    public ApiResponse<List<MessageResponse>> getPinnedMessages(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long id) {
+        List<MessageResponse> pinnedMessages = conversationService.getPinnedMessages(principal.getId(), id);
+        return ApiResponse.success(pinnedMessages);
     }
 
     // Inner classes for simple request bodies

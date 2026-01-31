@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { Conversation, ApiResponse } from '@/types'
+import type { Conversation, Message, ApiResponse } from '@/types'
 
 export const conversationApi = {
   async getConversations(): Promise<Conversation[]> {
@@ -52,5 +52,20 @@ export const conversationApi = {
 
   async updateBackground(id: number, backgroundUrl: string | null): Promise<void> {
     await apiClient.put(`/conversations/${id}/background`, { backgroundUrl })
+  },
+
+  async pinMessage(conversationId: number, messageId: number): Promise<void> {
+    await apiClient.post(`/conversations/${conversationId}/pin/${messageId}`)
+  },
+
+  async unpinMessage(conversationId: number, messageId: number): Promise<void> {
+    await apiClient.delete(`/conversations/${conversationId}/pin/${messageId}`)
+  },
+
+  async getPinnedMessages(conversationId: number): Promise<Message[]> {
+    const response = await apiClient.get<ApiResponse<Message[]>>(
+      `/conversations/${conversationId}/pinned`
+    )
+    return response.data.data
   },
 }
