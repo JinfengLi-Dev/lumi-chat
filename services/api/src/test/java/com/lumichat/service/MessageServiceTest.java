@@ -12,6 +12,7 @@ import com.lumichat.exception.BadRequestException;
 import com.lumichat.exception.ForbiddenException;
 import com.lumichat.exception.NotFoundException;
 import com.lumichat.repository.ConversationRepository;
+import com.lumichat.repository.MessageReactionRepository;
 import com.lumichat.repository.MessageRepository;
 import com.lumichat.repository.UserConversationRepository;
 import com.lumichat.repository.UserRepository;
@@ -51,6 +52,9 @@ class MessageServiceTest {
     private MessageRepository messageRepository;
 
     @Mock
+    private MessageReactionRepository messageReactionRepository;
+
+    @Mock
     private ConversationRepository conversationRepository;
 
     @Mock
@@ -84,6 +88,7 @@ class MessageServiceTest {
         // Manually construct MessageService with fixed clock
         messageService = new MessageService(
                 messageRepository,
+                messageReactionRepository,
                 conversationRepository,
                 userConversationRepository,
                 userRepository,

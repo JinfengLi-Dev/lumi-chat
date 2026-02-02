@@ -55,7 +55,15 @@ public class UserService {
         User user = getUserById(userId);
 
         if (request.getNickname() != null && !request.getNickname().isBlank()) {
-            user.setNickname(request.getNickname());
+            String newNickname = request.getNickname().trim();
+
+            // Add uniqueness validation for nickname
+            if (!user.getNickname().equals(newNickname)) {
+                if (userRepository.existsByNickname(newNickname)) {
+                    throw new BadRequestException("Nickname is already in use");
+                }
+            }
+            user.setNickname(newNickname);
         }
 
         if (request.getGender() != null) {
@@ -203,6 +211,47 @@ public class UserService {
         user.setUid(newUid);
         user = userRepository.save(user);
         log.info("Updated UID for user {} to {}", userId, newUid);
+        return UserResponse.from(user);
+    }
+
+    /**
+     * Check if nickname is available (not taken by another user)
+     */
+    public boolean isNicknameAvailable(Long currentUserId, String nickname) {
+        User currentUser = getUserById(currentUserId);
+
+        // If the nickname is the same as current user's nickname, it's available
+        if (currentUser.getNickname().equals(nickname)) {
+            return true;
+        }
+
+        // Check if nickname is taken by another user
+        return !userRepository.existsByNickname(nickname);
+    }
+
+    /**
+     * Update user's nickname with uniqueness validation
+     */
+    @Transactional
+    public UserResponse updateNickname(Long userId, String newNickname) {
+        User user = getUserById(userId);
+
+        // Trim whitespace
+        newNickname = newNickname.trim();
+
+        // Check if nickname is same as current
+        if (user.getNickname().equals(newNickname)) {
+            return UserResponse.from(user);
+        }
+
+        // Check if nickname is already taken
+        if (userRepository.existsByNickname(newNickname)) {
+            throw new BadRequestException("Nickname is already in use");
+        }
+
+        user.setNickname(newNickname);
+        user = userRepository.save(user);
+        log.info("Updated nickname for user {} to {}", userId, newNickname);
         return UserResponse.from(user);
     }
 }

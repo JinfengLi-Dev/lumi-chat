@@ -71,4 +71,16 @@ export const userApi = {
     const response = await apiClient.put<ApiResponse<User>>('/users/me/uid', { uid })
     return response.data.data
   },
+
+  async checkNicknameAvailability(nickname: string): Promise<boolean> {
+    const response = await apiClient.get<ApiResponse<{ available: boolean }>>('/users/check-nickname', {
+      params: { nickname },
+    })
+    return response.data.data.available
+  },
+
+  async updateNickname(nickname: string): Promise<User> {
+    const response = await apiClient.put<ApiResponse<User>>('/users/me/nickname', { nickname })
+    return response.data.data
+  },
 }

@@ -115,6 +115,90 @@ async function handleUpdateUid() {
   }
 }
 
+// Nickname editing state
+const nicknameForm = reactive({
+  nickname: userStore.user?.nickname || '',
+})
+const originalNickname = ref(userStore.user?.nickname || '')
+const nicknameChecking = ref(false)
+const nicknameSaving = ref(false)
+const nicknameAvailable = ref<boolean | null>(null)
+const nicknameError = ref('')
+let nicknameCheckTimeout: ReturnType<typeof setTimeout> | null = null
+
+// Computed: Check if nickname has changed
+const nicknameChanged = computed(() => nicknameForm.nickname !== originalNickname.value)
+
+// Watch for nickname changes to check availability
+watch(() => nicknameForm.nickname, (newNickname) => {
+  // Reset state on each change
+  nicknameError.value = ''
+  nicknameAvailable.value = null
+
+  // Clear previous timeout
+  if (nicknameCheckTimeout) {
+    clearTimeout(nicknameCheckTimeout)
+  }
+
+  // If nickname is same as original, no need to check
+  if (newNickname === originalNickname.value) {
+    return
+  }
+
+  // Validate format
+  if (!newNickname || newNickname.length < 2) {
+    nicknameError.value = newNickname.length > 0 ? 'Nickname must be at least 2 characters' : ''
+    return
+  }
+
+  if (newNickname.length > 30) {
+    nicknameError.value = 'Nickname must be at most 30 characters'
+    return
+  }
+
+  // Debounce the check
+  nicknameCheckTimeout = setTimeout(() => {
+    checkNicknameAvailability()
+  }, 500)
+})
+
+async function checkNicknameAvailability() {
+  if (!nicknameChanged.value) return
+
+  nicknameChecking.value = true
+  try {
+    const available = await userApi.checkNicknameAvailability(nicknameForm.nickname)
+    nicknameAvailable.value = available
+    if (!available) {
+      nicknameError.value = 'This nickname is already taken'
+    }
+  } catch (error) {
+    nicknameError.value = getErrorMessage(error)
+  } finally {
+    nicknameChecking.value = false
+  }
+}
+
+async function handleUpdateNickname() {
+  if (!nicknameChanged.value || nicknameAvailable.value === false || nicknameError.value) {
+    return
+  }
+
+  nicknameSaving.value = true
+  try {
+    const updatedUser = await userApi.updateNickname(nicknameForm.nickname)
+    userStore.user = updatedUser
+    originalNickname.value = updatedUser.nickname
+    nicknameAvailable.value = null
+    ElMessage.success('Nickname updated successfully')
+  } catch (error) {
+    nicknameError.value = getErrorMessage(error)
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    nicknameSaving.value = false
+  }
+}
+
 const profileForm = reactive({
   nickname: userStore.user?.nickname || '',
   gender: userStore.user?.gender || 'unknown',
@@ -333,8 +417,42 @@ function handleThemeChange(val: string | number | boolean | undefined) {
             <el-input :value="userStore.user?.email" disabled />
           </el-form-item>
 
-          <el-form-item label="Nickname" prop="nickname">
-            <el-input v-model="profileForm.nickname" />
+          <el-form-item label="Nickname">
+            <div class="nickname-input-wrapper">
+              <el-input
+                v-model="nicknameForm.nickname"
+                placeholder="Enter your display name"
+                :class="{
+                  'nickname-available': nicknameAvailable === true && nicknameChanged,
+                  'nickname-taken': nicknameAvailable === false
+                }"
+              >
+                <template #suffix>
+                  <el-icon v-if="nicknameChecking" class="is-loading"><Loading /></el-icon>
+                  <el-icon v-else-if="nicknameAvailable === true && nicknameChanged" class="nickname-success-icon">
+                    <CircleCheck />
+                  </el-icon>
+                  <el-icon v-else-if="nicknameAvailable === false" class="nickname-error-icon">
+                    <CircleClose />
+                  </el-icon>
+                </template>
+              </el-input>
+              <el-button
+                v-if="nicknameChanged"
+                type="primary"
+                size="small"
+                :loading="nicknameSaving"
+                :disabled="nicknameAvailable !== true || !!nicknameError"
+                @click="handleUpdateNickname"
+              >
+                Save
+              </el-button>
+            </div>
+            <div v-if="nicknameError" class="nickname-status nickname-error">{{ nicknameError }}</div>
+            <div v-else-if="nicknameAvailable === true && nicknameChanged" class="nickname-status nickname-success">
+              Nickname is available ✓
+            </div>
+            <div class="nickname-hint">2-30 characters, your display name in conversations</div>
           </el-form-item>
 
           <el-form-item label="Gender" prop="gender">
@@ -885,5 +1003,54 @@ function handleThemeChange(val: string | number | boolean | undefined) {
 
 .uid-taken :deep(.el-input__wrapper) {
   box-shadow: 0 0 0 1px var(--el-color-danger) inset;
+}
+
+/* Nickname Input Styles */
+.nickname-input-wrapper {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+}
+
+.nickname-input-wrapper .el-input {
+  flex: 1;
+}
+
+.nickname-status {
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.nickname-status.nickname-error {
+  color: var(--el-color-danger);
+}
+
+.nickname-status.nickname-success {
+  color: var(--el-color-success);
+}
+
+.nickname-hint {
+  font-size: 11px;
+  color: var(--lc-text-secondary);
+  margin-top: 4px;
+}
+
+.nickname-success-icon {
+  color: var(--el-color-success);
+}
+
+.nickname-error-icon {
+  color: var(--el-color-danger);
+}
+
+.nickname-available :deep(.el-input__wrapper) {
+  box-shadow: 0 0 0 1px var(--el-color-success) inset;
+  transition: all 0.3s ease;
+}
+
+.nickname-taken :deep(.el-input__wrapper) {
+  box-shadow: 0 0 0 1px var(--el-color-danger) inset;
+  transition: all 0.3s ease;
 }
 </style>

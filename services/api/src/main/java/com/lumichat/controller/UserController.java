@@ -1,6 +1,7 @@
 package com.lumichat.controller;
 
 import com.lumichat.dto.request.ChangePasswordRequest;
+import com.lumichat.dto.request.UpdateNicknameRequest;
 import com.lumichat.dto.request.UpdateProfileRequest;
 import com.lumichat.dto.request.UpdateUidRequest;
 import com.lumichat.dto.response.ApiResponse;
@@ -121,6 +122,36 @@ public class UserController {
             @AuthenticationPrincipal UserPrincipal principal,
             @Valid @RequestBody UpdateUidRequest request) {
         UserResponse user = userService.updateUid(principal.getId(), request.getUid());
+        return ApiResponse.success(user);
+    }
+
+    /**
+     * Check if nickname is available
+     * GET /users/check-nickname?nickname=xxx
+     */
+    @GetMapping("/check-nickname")
+    public ApiResponse<Map<String, Boolean>> checkNicknameAvailability(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestParam String nickname) {
+
+        // Validate nickname format (2-30 chars)
+        if (nickname.length() < 2 || nickname.length() > 30) {
+            return ApiResponse.error(400, "Nickname must be 2-30 characters");
+        }
+
+        boolean available = userService.isNicknameAvailable(principal.getId(), nickname);
+        return ApiResponse.success(Map.of("available", available));
+    }
+
+    /**
+     * Update user nickname
+     * PUT /users/me/nickname
+     */
+    @PutMapping("/me/nickname")
+    public ApiResponse<UserResponse> updateNickname(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody UpdateNicknameRequest request) {
+        UserResponse user = userService.updateNickname(principal.getId(), request.getNickname());
         return ApiResponse.success(user);
     }
 
